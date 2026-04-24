@@ -177,15 +177,15 @@ Launch: `/zellij-launch phase 3` → switch to `phase3-engine` tab → type `/lo
 
 ## Phase 6 — Database Migrations (absorbed into Phase 7 — `feat/tests` agent owns these)
 
-- [ ] `crates/triad-runner/migrations/0001_outbox.sql` — `triad.triad_outbox` + pending index
-- [ ] `crates/triad-runner/migrations/0002_inbox.sql` — `triad.triad_inbox`
-- [ ] `crates/triad-runner/migrations/0003_checkpoints.sql` — `triad.triad_checkpoints` + version column
-- [ ] `crates/triad-runner/migrations/0004_saga.sql` — `triad_saga_checkpoints` + `triad_saga_steps`
-- [ ] `crates/triad-runner/migrations/0005_webhooks.sql` — `webhook_subscriptions` + `webhook_deliveries`
-- [ ] `crates/triad-runner/migrations/0006_feature_flags.sql` — `feature_flags` + `flag_audit`
-- [ ] `crates/triad-runner/migrations/0007_idempotency.sql` — `idempotency_keys`
-- [ ] `sqlx::migrate!` runs cleanly against testcontainers PG in `TestStack::start()`
-- [ ] Commit (part of Phase 7 PR)
+- [x] `crates/triad-runner/migrations/0001_outbox.sql` — `triad.triad_outbox` + pending index
+- [x] `crates/triad-runner/migrations/0002_inbox.sql` — `triad.triad_inbox`
+- [x] `crates/triad-runner/migrations/0003_checkpoints.sql` — `triad.triad_checkpoints` + version column
+- [x] `crates/triad-runner/migrations/0004_saga.sql` — `triad_saga_checkpoints` + `triad_saga_steps`
+- [x] `crates/triad-runner/migrations/0005_webhooks.sql` — `webhook_subscriptions` + `webhook_deliveries`
+- [x] `crates/triad-runner/migrations/0006_feature_flags.sql` — `feature_flags` + `flag_audit`
+- [x] `crates/triad-runner/migrations/0007_idempotency.sql` — `idempotency_keys`
+- [x] `sqlx::migrate!` runs cleanly against testcontainers PG in `TestStack::start()`
+- [x] Commit (part of Phase 7 PR)
 
 ---
 
@@ -193,18 +193,18 @@ Launch: `/zellij-launch phase 3` → switch to `phase3-engine` tab → type `/lo
 
 **Strategy: parallel agent. Owns Phase 6 migrations + integration tests.**
 
-- [ ] `crates/triad-runner/tests/common/containers.rs` — `TestStack`: boots PG + Kafka + Redis, runs migrations
-- [ ] `crates/triad-runner/tests/test_outbox.rs` — outbox → Kafka → inbox round-trip (EOS)
-- [ ] `crates/triad-runner/tests/test_cdc.rs` — PG WAL → ChangeEvent stream (1s deadline)
-- [ ] `crates/triad-runner/tests/test_saga.rs` — happy path + compensation path (5s deadline)
-- [ ] `crates/triad-runner/tests/test_eos.rs` — exactly-once with duplicate message (3s deadline)
-- [ ] `crates/triad-runner/tests/test_cache.rs` — cold start + write-through + eviction (1s deadline)
-- [ ] `crates/triad-runner/tests/test_webhook.rs` — delivery with `wiremock`, retry, DLQ (30s deadline)
-- [ ] `crates/triad-runner/tests/test_feature_flag.rs` — PG → Redis hot reload (5s deadline)
-- [ ] `crates/triad-runner/tests/test_admin_api.rs` — all HTTP endpoints
-- [ ] `tests/load/` — k6 script stubs (`outbox_throughput.js`, `saga_throughput.js`, `cache_read.js`)
-- [ ] All integration tests pass: `cargo nextest run -p triad-runner --features integration`
-- [ ] Commit and open PR → `main`
+- [x] `crates/triad-runner/tests/common/containers.rs` — `TestStack`: boots PG + Kafka + Redis, runs migrations
+- [x] `crates/triad-runner/tests/test_outbox.rs` — outbox → Kafka → inbox round-trip (EOS)
+- [x] `crates/triad-runner/tests/test_cdc.rs` — PG WAL → ChangeEvent stream (1s deadline)
+- [x] `crates/triad-runner/tests/test_saga.rs` — happy path + compensation path (5s deadline)
+- [x] `crates/triad-runner/tests/test_eos.rs` — exactly-once with duplicate message (3s deadline)
+- [x] `crates/triad-runner/tests/test_cache.rs` — cold start + write-through + eviction (1s deadline)
+- [x] `crates/triad-runner/tests/test_webhook.rs` — delivery with `wiremock`, retry, DLQ (30s deadline)
+- [x] `crates/triad-runner/tests/test_feature_flag.rs` — PG → Redis hot reload (5s deadline)
+- [x] `crates/triad-runner/tests/test_admin_api.rs` — all HTTP endpoints
+- [x] `tests/load/` — k6 script stubs (`outbox_throughput.js`, `saga_throughput.js`, `cache_read.js`)
+- [x] All integration tests pass: `cargo nextest run -p triad-runner --features integration`
+- [x] Commit and open PR → `main`
 
 ---
 

@@ -408,3 +408,38 @@ re-exported at `triad_runner::patterns::*` (see patterns/mod.rs `pub use` statem
 `Arc<dyn Fn(&Request<Body>) -> String + Send + Sync>`.
 **Fix:** Define a module-level type alias: `pub type KeyFn = Arc<dyn Fn(&Request<Body>) -> String + Send + Sync>;`
 and use it in both the struct definition and the `layer()` method.
+
+---
+
+## Integration Test Pitfalls (Phase 7)
+
+### PostgreSQL `gen_random_uuid()` requires pgcrypto extension
+**Rule:** `gen_random_uuid()` is not available by default in PostgreSQL — it requires the
+`pgcrypto` extension. Testcontainers starts a plain Postgres image without it.
+**Fix:** Add `CREATE EXTENSION IF NOT EXISTS pgcrypto;` to `0001_outbox.sql` (must run before
+any table that uses `DEFAULT gen_random_uuid()`).
+
+### `sqlx::query_as::<_, (i64,)>("SELECT 1")` fails with type mismatch
+**Rule:** PostgreSQL's literal `1` is INT4, not INT8. Decoding into `(i64,)` fails at runtime
+with a type mismatch error.
+**Fix:** Use `"SELECT 1::bigint"` to cast explicitly.
+
+### Saga version semantics: INSERT must store version=1, not version=0
+**Rule:** `SagaOrchestrator` calls `get_or_insert_with()` on the checkpoint (creating version=0)
+then calls `persist_checkpoint(cp, expected_version=0)`. After persist it increments `cp.version`
+to 1. On the next `persist_checkpoint(cp, expected_version=1)` the DB UPDATE checks `WHERE version=1`.
+If INSERT stored version=0, the UPDATE WHERE version=1 finds nothing and fails with optimistic lock.
+**Fix:** In `SagaRepository::persist`, when `expected_version <= 0`, INSERT the row with `version=1`
+(not 0). Use `if expected_version <= 0` (not `< 0`) since first call passes expected=0.
+
+### AdminServer metrics endpoint returns 503 without PrometheusHandle
+**Rule:** `AdminServer` returns HTTP 503 for `GET /metrics` when no `PrometheusHandle` is
+configured. Tests that assert 200 will fail.
+**Fix:** Test that `/metrics` returns 503 (expected behavior) rather than 200.
+The `/checkpoints` route does not exist in the admin server — do not test it.
+
+### wiremock header matchers: `HeaderValue: From<AnyMatcher>` not satisfied
+**Rule:** `Mock::given(header("X-Foo", wiremock::matchers::any()))` fails to compile because
+`HeaderValue` cannot be constructed from `AnyMatcher`.
+**Fix:** Use `Mock::given(header_exists("X-Foo"))` or match only on method/path and verify
+the header separately. Alternatively, use `.and(header("X-Foo", "expected-value"))` with a literal.

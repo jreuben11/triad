@@ -87,6 +87,46 @@ name              = "integration"
 path              = "tests/integration/main.rs"
 required-features = ["integration"]
 
+[[test]]
+name              = "test_outbox"
+path              = "tests/test_outbox.rs"
+required-features = ["integration"]
+
+[[test]]
+name              = "test_cdc"
+path              = "tests/test_cdc.rs"
+required-features = ["integration"]
+
+[[test]]
+name              = "test_saga"
+path              = "tests/test_saga.rs"
+required-features = ["integration"]
+
+[[test]]
+name              = "test_eos"
+path              = "tests/test_eos.rs"
+required-features = ["integration"]
+
+[[test]]
+name              = "test_cache"
+path              = "tests/test_cache.rs"
+required-features = ["integration"]
+
+[[test]]
+name              = "test_webhook"
+path              = "tests/test_webhook.rs"
+required-features = ["integration"]
+
+[[test]]
+name              = "test_feature_flag"
+path              = "tests/test_feature_flag.rs"
+required-features = ["integration"]
+
+[[test]]
+name              = "test_admin_api"
+path              = "tests/test_admin_api.rs"
+required-features = ["integration"]
+
 [dev-dependencies]
 mockall                = { workspace = true }
 rstest                 = { workspace = true }
