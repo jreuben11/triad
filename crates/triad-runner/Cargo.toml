@@ -1,0 +1,85 @@
+[package]
+name        = "triad-runner"
+description = "Pattern module implementations, backend clients, admin HTTP server, and leader election for Triad"
+version.workspace     = true
+edition.workspace     = true
+authors.workspace     = true
+license.workspace     = true
+repository.workspace  = true
+rust-version.workspace = true
+
+[dependencies]
+triad-core  = { path = "../triad-core" }
+triad-proto = { path = "../triad-proto" }
+
+# Async
+tokio        = { workspace = true }
+tokio-stream = { workspace = true }
+futures      = { workspace = true }
+async-trait  = { workspace = true }
+
+# gRPC / HTTP
+tonic        = { workspace = true }
+axum         = { workspace = true }
+tower        = { workspace = true }
+tower-http   = { workspace = true }
+hyper        = { workspace = true }
+reqwest      = { workspace = true }
+
+# Kafka
+rdkafka                   = { workspace = true }
+schema_registry_converter = { workspace = true }
+
+# PostgreSQL
+sqlx                 = { workspace = true }
+tokio-postgres       = { workspace = true }
+
+# Redis
+redis          = { workspace = true }
+deadpool-redis = { workspace = true }
+
+# Serialization
+serde      = { workspace = true }
+serde_json = { workspace = true }
+bytes      = { workspace = true }
+
+# Config
+config     = { workspace = true }
+
+# Error handling
+thiserror  = { workspace = true }
+anyhow     = { workspace = true }
+
+# Retry
+backoff    = { workspace = true }
+
+# Tracing / Metrics
+tracing                    = { workspace = true }
+tracing-subscriber         = { workspace = true }
+tracing-opentelemetry      = { workspace = true }
+opentelemetry              = { workspace = true }
+opentelemetry_sdk          = { workspace = true }
+opentelemetry-otlp         = { workspace = true }
+opentelemetry-semantic-conventions = { workspace = true }
+metrics                    = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
+
+# Utilities
+uuid    = { workspace = true }
+chrono  = { workspace = true }
+
+# K8s leader election (optional: only compiled for Mode 3)
+kube        = { workspace = true, optional = true }
+k8s-openapi = { workspace = true, optional = true }
+
+[features]
+default    = []
+kubernetes = ["kube", "k8s-openapi"]   # enables K8s Lease leader election
+
+[dev-dependencies]
+mockall                = { workspace = true }
+rstest                 = { workspace = true }
+tokio-test             = { workspace = true }
+testcontainers         = { workspace = true }
+testcontainers-modules = { workspace = true }
+wiremock               = { workspace = true }

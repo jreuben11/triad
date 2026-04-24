@@ -1,0 +1,45 @@
+[package]
+name        = "triad-core"
+description = "Core domain types, traits, error types, and config schema for Triad"
+version.workspace     = true
+edition.workspace     = true
+authors.workspace     = true
+license.workspace     = true
+repository.workspace  = true
+rust-version.workspace = true
+
+[dependencies]
+# Async
+tokio        = { workspace = true }
+tokio-stream = { workspace = true }
+futures      = { workspace = true }
+async-trait  = { workspace = true }
+
+# Serialization
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+serde_yaml   = { workspace = true }
+bytes        = { workspace = true }
+
+# Configuration
+config       = { workspace = true }
+
+# Error handling
+thiserror    = { workspace = true }
+
+# Metrics
+metrics      = { workspace = true }
+
+# Tracing
+tracing      = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry-semantic-conventions = { workspace = true }
+
+# Utilities
+uuid         = { workspace = true }
+chrono       = { workspace = true }
+
+[dev-dependencies]
+mockall      = { workspace = true }
+rstest       = { workspace = true }
+tokio-test   = { workspace = true }

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "${TRIAD_DEV_DB_URL:-postgresql://localhost/triad_dev}"
+      ]
+    }
+  }
+}

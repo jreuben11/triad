@@ -1,0 +1,58 @@
+[package]
+name        = "triad-cli"
+description = "triad binary: standalone server (Mode 2) and admin CLI client"
+version.workspace     = true
+edition.workspace     = true
+authors.workspace     = true
+license.workspace     = true
+repository.workspace  = true
+rust-version.workspace = true
+
+[[bin]]
+name = "triad"
+path = "src/main.rs"
+
+[dependencies]
+triad-core   = { path = "../triad-core" }
+triad-runner = { path = "../triad-runner" }
+triad-proto  = { path = "../triad-proto" }
+
+# Async
+tokio       = { workspace = true }
+futures     = { workspace = true }
+
+# CLI
+clap        = { workspace = true }
+
+# HTTP client (for admin-client commands)
+reqwest     = { workspace = true }
+
+# gRPC client
+tonic       = { workspace = true }
+
+# Serialization
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+serde_yaml  = { workspace = true }
+
+# Config
+config      = { workspace = true }
+
+# Error handling
+anyhow      = { workspace = true }
+
+# Tracing
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Utilities
+uuid    = { workspace = true }
+chrono  = { workspace = true }
+
+[features]
+default    = []
+kubernetes = ["triad-runner/kubernetes"]
+
+[dev-dependencies]
+rstest     = { workspace = true }
+tokio-test = { workspace = true }

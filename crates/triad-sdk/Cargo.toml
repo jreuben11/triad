@@ -1,0 +1,45 @@
+[package]
+name        = "triad-sdk"
+description = "In-process SDK for embedding Triad patterns into Rust applications (Mode 1)"
+version.workspace     = true
+edition.workspace     = true
+authors.workspace     = true
+license.workspace     = true
+repository.workspace  = true
+rust-version.workspace = true
+
+[dependencies]
+triad-core   = { path = "../triad-core" }
+triad-runner = { path = "../triad-runner" }
+
+# Async
+tokio        = { workspace = true }
+async-trait  = { workspace = true }
+futures      = { workspace = true }
+
+# HTTP integration (tower middleware + Axum extractors)
+tower        = { workspace = true }
+axum         = { workspace = true }
+
+# Error handling
+thiserror    = { workspace = true }
+anyhow       = { workspace = true }
+
+# Tracing
+tracing      = { workspace = true }
+
+# Serialization
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+
+# Utilities
+uuid         = { workspace = true }
+chrono       = { workspace = true }
+
+[dev-dependencies]
+mockall          = { workspace = true }
+rstest           = { workspace = true }
+tokio-test       = { workspace = true }
+testcontainers   = { workspace = true }
+testcontainers-modules = { workspace = true }
+wiremock         = { workspace = true }
