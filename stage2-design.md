@@ -309,9 +309,283 @@ as `serde_json::Value` and dispatching `apply` calls back into Python via `PyObj
 
 ---
 
+---
+
+## Stage 2b — Terminal UI (`crates/triad-tui`)
+
+### Goal
+
+A `triad tui` subcommand that opens a full-screen Ratatui dashboard connected to the admin
+HTTP API. Exercises every CLI option interactively, displays live config and runtime state,
+and uses Tachyonfx for polished screen transitions and status animations.
+
+---
+
+### New crate: `crates/triad-tui`
+
+```
+crates/triad-tui/
+  Cargo.toml
+  src/
+    main.rs           # arg parse, spawn poller task, run event loop
+    app.rs            # App state: active screen, last-fetch data, effect queue
+    client.rs         # AdminClient poller — fetches all endpoints on a 1s tick
+    effects.rs        # named Tachyonfx effect constructors (startup, transition, alert)
+    screens/
+      mod.rs          # Screen enum + render dispatch
+      dashboard.rs    # overview: health, patterns summary, lag, backends
+      patterns.rs     # full pattern list + pause/resume/replay actions
+      dlq.rs          # DLQ topics, message counts, replay/purge
+      checkpoints.rs  # checkpoint offsets per pipeline
+      sagas.rs        # saga list + step inspector popup
+      config.rs       # parsed triad.yaml pretty-printed as a tree
+    widgets/
+      status_badge.rs # coloured ● Running / ◌ Paused / ✗ Error badge
+      lag_bar.rs      # consumer-lag mini bar chart
+      key_help.rs     # bottom key-binding bar, context-sensitive
+```
+
+**Dependencies:**
+```toml
+ratatui       = "0.29"
+tachyonfx     = { version = "0.7", features = ["sendable"] }
+crossterm     = "0.28"
+tokio         = { version = "1", features = ["full"] }
+reqwest       = { version = "0.12", features = ["json"] }
+serde_json    = "1"
+triad-core    = { path = "../triad-core" }   # TriadConfig for the Config screen
+```
+
+`triad-tui` is added as a new binary in `triad-cli/Cargo.toml` OR as a standalone
+`crates/triad-tui/` binary that `triad-cli/main.rs` invokes via `Command::Tui`.
+
+---
+
+### Screen layouts
+
+#### 1. Dashboard (default, key `1`)
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  ▸ triad  ■ RUNNING  ↑ 2h 34m  inst: a1b2c3d  leader: ✓  v0.1.0   ║
+╠═══════════════════════════════════╦══════════════════════════════════╣
+║ PATTERNS  8 / 8 running           ║ BACKENDS                         ║
+║                                   ║  ● postgres   ok  (pool: 8/16)   ║
+║  ● outbox          Running        ║  ● kafka      ok                  ║
+║  ● inbox           Running        ║  ● redis      ok  (standalone)   ║
+║  ● cdc             Running        ╠══════════════════════════════════╣
+║  ● cache           Running        ║ CONSUMER LAG                     ║
+║  ● webhook         Running        ║  orders.events      ████░░  240  ║
+║  ● feature_flag    Running        ║  payments.events    ░░░░░░    0  ║
+║  ● rate_limit      Running        ║  saga.commands      ░░░░░░    0  ║
+║  ● saga            Running        ║                                  ║
+╠═══════════════════════════════════╩══════════════════════════════════╣
+║ [1]Dashboard [2]Patterns [3]DLQ [4]Checkpoints [5]Sagas [6]Config  ║
+║ [r]efresh  [q]uit  [?]help                                           ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+#### 2. Patterns (key `2`)
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  PATTERNS                                              [ESC] back    ║
+╠══════════════════════════════════════════════════════════════════════╣
+║  Name             Type          Status      Actions                  ║
+║  ─────────────────────────────────────────────────────────────────  ║
+║▶ outbox           outbox        ● Running   [p]ause   [x]replay      ║
+║  inbox            inbox         ● Running   [p]ause   [x]replay      ║
+║  cdc              cdc           ● Running   [p]ause                  ║
+║  cache            cache         ◌ Paused    [r]esume  [x]replay      ║
+║  webhook          webhook       ● Running   [p]ause   [x]replay      ║
+║  feature_flag     feature_flag  ● Running   [p]ause                  ║
+║  rate_limit       rate_limit    ● Running   [p]ause                  ║
+║  saga             saga          ● Running   [p]ause   [x]replay      ║
+╠══════════════════════════════════════════════════════════════════════╣
+║  [↑/↓] select  [p] pause  [r] resume  [x] replay  [ESC] dashboard   ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+Status changes (Running → Paused) trigger a `tachyonfx::fade_from_fg(Color::Yellow, 400ms)`
+on the affected row so the eye catches it immediately.
+
+#### 3. DLQ (key `3`)
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  DEAD LETTER QUEUES                                    [ESC] back    ║
+╠════════════════════════════════╦═════════════╦════════╦═════════════╣
+║  Topic                         ║  Messages   ║        ║             ║
+║  ──────────────────────────────╬─────────────╬────────╬─────────────║
+║▶ triad.dlq.orders.events       ║          42 ║ [R]epl ║ [P]urge     ║
+║  triad.dlq.payments.events     ║           0 ║        ║             ║
+║  triad.dlq.webhook.deliveries  ║           7 ║ [R]epl ║ [P]urge     ║
+╠════════════════════════════════╩═════════════╩════════╩═════════════╣
+║  [↑/↓] select  [R] replay topic  [P] purge topic  [ESC] dashboard   ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+Confirm popup (styled with `tachyonfx::coalesce(300ms)`) before destructive Purge action.
+
+#### 4. Checkpoints (key `4`)
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  CHECKPOINTS                                           [ESC] back    ║
+╠═══════════════════════╦═════════════════╦══════════╦════════════════╣
+║  Pattern              ║  Pipeline       ║  Offset  ║  Updated       ║
+║  ─────────────────────╬─────────────────╬──────────╬────────────────║
+║  outbox               ║  orders         ║  1048234 ║  2s ago        ║
+║  inbox                ║  orders         ║  1048220 ║  3s ago        ║
+║  cdc                  ║  inventory      ║    99012 ║  1s ago        ║
+║  saga                 ║  order-saga     ║      441 ║  12s ago       ║
+╠═══════════════════════╩═════════════════╩══════════╩════════════════╣
+║  [↑/↓] select  [ESC] dashboard                                       ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+#### 5. Sagas (key `5`)
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  SAGAS                                                 [ESC] back    ║
+╠══════════════════════════════╦═══════════╦════════════╦═════════════╣
+║  Saga ID                     ║  Name     ║  Status    ║  Step       ║
+║  ────────────────────────────╬───────────╬────────────╬─────────────║
+║▶ 3f2a…c19d                   ║  order    ║  Running   ║  2/3        ║
+║  8b1e…44fa                   ║  order    ║  Completed ║  3/3        ║
+║  0d9c…8812                   ║  payment  ║  RolledBack║  1/2        ║
+╠══════════════════════════════╧═══════════╧════════════╧═════════════╣
+║ ▼ SAGA DETAIL: 3f2a…c19d — order-saga                               ║
+║   Step 1: reserve-inventory  ✓ Success   48ms                       ║
+║   Step 2: charge-payment     ● Running   …                          ║
+║   Step 3: confirm-shipment   ○ Pending                              ║
+║   [c]ancel saga                                                      ║
+╠══════════════════════════════════════════════════════════════════════╣
+║  [↑/↓] select  [Enter] expand  [c] cancel  [ESC] dashboard          ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+#### 6. Config (key `6`)
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  CONFIG  triad.yaml                       [v]alidate  [ESC] back    ║
+╠══════════════════════════════════════════════════════════════════════╣
+║  ▼ backends                                                          ║
+║    ▼ postgres                                                        ║
+║        url:          postgres://localhost/triad                      ║
+║        pool_size:    16                                              ║
+║        min_idle:     2                                               ║
+║    ▼ kafka                                                           ║
+║        brokers:      ["localhost:9092"]                              ║
+║        group_id:     triad-runner                                    ║
+║    ▼ redis                                                           ║
+║        mode:         standalone                                      ║
+║        url:          redis://localhost:6379                          ║
+║  ▼ patterns  (8 configured)                                          ║
+║    ● outbox / feature_flag / rate_limit / webhook / …               ║
+╠══════════════════════════════════════════════════════════════════════╣
+║  [↑/↓] scroll  [v] validate  [ESC] dashboard                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+`[v]alidate` calls `TriadConfig::load() + validate()` live and shows result with a
+`tachyonfx::fade_from_fg(Color::Green, 500ms)` flash on success or
+`tachyonfx::glitch_in(400ms)` on error.
+
+---
+
+### Tachyonfx effect plan
+
+| Trigger | Effect | Duration |
+|---------|--------|----------|
+| TUI startup | `glitch_in` on header bar | 600ms |
+| Screen switch (forward) | `slide_in(Direction::Left)` on content area | 250ms |
+| Screen switch (back) | `slide_in(Direction::Right)` on content area | 250ms |
+| Pattern status change | `fade_from_fg(status_color)` on changed row | 400ms |
+| Confirm popup appears | `coalesce` on popup text | 300ms |
+| Config validate OK | `fade_from_fg(Color::Green)` on status line | 500ms |
+| Config validate error | `glitch_in` on error message | 400ms |
+| DLQ message count increases | `fade_from_fg(Color::Red)` on count cell | 300ms |
+| Successful action (pause/replay) | `fade_from_fg(Color::Cyan)` on row | 250ms |
+| Data refresh tick | `fade_from_fg(Color::DarkGray, 150ms)` pulse on stale cells | 150ms |
+
+All effects are fire-and-forget: registered in `App::effect_queue: Vec<(Rect, Effect)>`,
+rendered each frame via `fx::effect_renderer`, expired effects removed automatically.
+
+---
+
+### New CLI subcommand
+
+Add to `triad-cli/src/main.rs`:
+```rust
+/// Launch the interactive terminal dashboard
+Tui(commands::tui::TuiArgs),
+```
+
+```rust
+// commands/tui.rs
+#[derive(Args)]
+pub struct TuiArgs {
+    #[arg(long, env = "TRIAD_ADMIN_URL", default_value = "http://localhost:8080")]
+    pub admin_url: String,
+
+    #[arg(long, default_value = "1000")]
+    pub poll_ms: u64,   // admin API polling interval
+}
+```
+
+---
+
+### Done criteria (TUI)
+
+- [ ] `triad tui` opens without panic when admin server is unreachable (shows "connecting…" state)
+- [ ] Dashboard polls admin API every `--poll-ms` ms and refreshes all panels
+- [ ] All 6 screens render without layout overflow on 80×24 and 220×50 terminals
+- [ ] Patterns screen: pause/resume/replay calls correct admin endpoints and refreshes state
+- [ ] DLQ screen: replay and purge work; purge shows confirm popup before executing
+- [ ] Checkpoints screen: displays all checkpoint rows
+- [ ] Sagas screen: list renders; `Enter` expands detail; `c` triggers cancel
+- [ ] Config screen: displays parsed `triad.yaml`; `v` validate shows pass/fail
+- [ ] All Tachyonfx effects run without terminal corruption; effects clean up on completion
+- [ ] `cargo clippy -p triad-tui -- -D warnings` clean
+- [ ] `cargo nextest run -p triad-tui` — unit tests for App state transitions pass
+- [ ] Commit and open PR → `main`
+
+---
+
 ## Stage 2 project-plan additions
 
 Add to `project-plan.md`:
+
+### Phase 8 — Bug Fixes (`feat/bugfixes`)
+
+Three bugs identified during CLI/HTTP surface audit:
+
+**Bug 1 — `triad run` bails unconditionally** (`commands/run.rs`)
+- `Runner` is already merged; the TODO comment is stale
+- Fix: replace `anyhow::bail!` stub with `Runner::new(&config, ...).run().await`
+
+**Bug 2 — `triad checkpoint list` calls `/checkpoints` which doesn't exist**
+- HTTP server (`admin.rs`) has no `/checkpoints` route
+- Fix: add `GET /checkpoints` to `admin_router`, backed by `PgCheckpointStore::list_all()`
+  (new method returning all checkpoint rows)
+
+**Bug 3 — `triad pipeline reload` calls `/pipelines/:name/reload` which doesn't exist**
+- HTTP server has `/config/reload` (global), not per-pipeline
+- Fix: add `POST /pipelines/:name/reload` to `admin_router`; handler logs the pipeline name
+  and delegates to config hot-reload (per-pipeline reload is future work)
+
+Checklist:
+- [ ] `commands/run.rs` — wire `Runner::new` + `runner.run().await`; SIGTERM via `ShutdownCoordinator`
+- [ ] `admin.rs` — add `GET /checkpoints` route + handler returning checkpoint rows from shared state
+- [ ] `admin.rs` — add `POST /pipelines/:name/reload` route + handler
+- [ ] Unit tests for the two new admin routes
+- [ ] `cargo clippy --workspace -- -D warnings` clean after changes
+- [ ] Commit and open PR → `main`
+
+---
 
 ### Phase 9 — Python bindings (`feat/triad-py`)
 
@@ -326,4 +600,25 @@ Add to `project-plan.md`:
 - [ ] `pytest` test suite (all patterns, testcontainers PG + Redis)
 - [ ] Type stubs + `mypy` clean
 - [ ] `maturin build --release` produces a valid `.whl`
+- [ ] Commit and open PR → `main`
+
+---
+
+### Phase 10 — Terminal UI (`feat/triad-tui`)
+
+- [ ] `crates/triad-tui/` scaffold: `Cargo.toml`, `src/main.rs`, `src/app.rs`
+- [ ] `client.rs` — polling `AdminClient` wrapping all admin endpoints on a configurable tick
+- [ ] `effects.rs` — named Tachyonfx constructors for all 10 trigger/effect pairs
+- [ ] Dashboard screen (screen 1): health + pattern summary + lag bars + backend status
+- [ ] Patterns screen (screen 2): list with pause/resume/replay actions + row fade on status change
+- [ ] DLQ screen (screen 3): per-topic counts + replay/purge with confirm popup
+- [ ] Checkpoints screen (screen 4): checkpoint offsets table
+- [ ] Sagas screen (screen 5): list + expandable step detail + cancel action
+- [ ] Config screen (screen 6): collapsible tree view of `triad.yaml` + live validate
+- [ ] `key_help` widget: context-sensitive key-binding bar
+- [ ] `status_badge` widget: coloured ● / ◌ / ✗ badges
+- [ ] `triad tui` CLI subcommand wired in `triad-cli/src/main.rs`
+- [ ] Unit tests for `App` state transitions (screen switching, action dispatch)
+- [ ] Renders correctly at 80×24 and 220×50
+- [ ] `cargo clippy -p triad-tui -- -D warnings` clean
 - [ ] Commit and open PR → `main`

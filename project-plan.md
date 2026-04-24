@@ -208,17 +208,68 @@ Launch: `/zellij-launch phase 3` → switch to `phase3-engine` tab → type `/lo
 
 ---
 
-## Phase 8 — Final integration gate
+## Phase 8 — Bug Fixes (`feat/bugfixes`)
 
-- [ ] `cargo check --workspace` clean
+Three bugs identified during CLI/HTTP surface audit:
+
+- [ ] `commands/run.rs` — wire `Runner::new` + `runner.run().await`; remove `anyhow::bail!` stub
+- [ ] `admin.rs` — add `GET /checkpoints` route (CLI calls it; server currently 404s)
+- [ ] `admin.rs` — add `POST /pipelines/:name/reload` route (CLI calls it; server has `/config/reload` only)
+- [ ] Unit tests for the two new admin routes
 - [ ] `cargo clippy --workspace -- -D warnings` clean
+- [ ] Commit and open PR → `main`
+
+---
+
+## Phase 9 — Final integration gate
+
 - [ ] `cargo fmt --check` clean
+- [ ] `cargo clippy --workspace -- -D warnings` clean
+- [ ] `cargo check --workspace` clean
 - [ ] `cargo nextest run --workspace` — all unit tests pass
 - [ ] `cargo nextest run --workspace --features integration` — all integration tests pass
-- [ ] `cargo llvm-cov --workspace --fail-under-lines 80` — coverage ≥ 80% overall
-- [ ] `cargo llvm-cov --package triad-runner --fail-under-lines 90` — runner ≥ 90%
+- [ ] `cargo llvm-cov nextest --workspace --fail-under-lines 80` — coverage ≥ 80% overall
+- [ ] `cargo llvm-cov nextest --package triad-runner --fail-under-lines 90` — runner ≥ 90%
 - [ ] Merge all feature branches to `main`
 - [ ] Tag `v0.1.0`
+
+---
+
+## Phase 10 — Python Bindings (`feat/triad-py`)
+
+See `stage2-design.md` §"Stage 2a" for full design and async-bridge notes.
+
+- [ ] `crates/triad-py/` scaffold: `Cargo.toml` (`cdylib`), `pyproject.toml` (maturin), `src/lib.rs`
+- [ ] `PyTriadInstance`: `start()`, `shutdown()`, `transaction()` context manager
+- [ ] `PyTransaction`: `execute()`, `fetch_one()`, `fetch_all()` backed by `sqlx::Transaction`
+- [ ] `PyOutboxPublisher`: `publish()` inside caller transaction
+- [ ] `PyFlagEvaluator`: `is_enabled()` with Redis/PG fallback
+- [ ] `PySagaBuilder`: fluent builder → `PySagaConfig` dataclass
+- [ ] `PyIdempotencyKey` / `PyIdempotencyRecord` / `lookup` / `store_result`
+- [ ] `PyAggregateRoot` + Python `Aggregate` ABC
+- [ ] `pytest` test suite (all patterns, testcontainers PG + Redis)
+- [ ] Type stubs + `mypy` clean
+- [ ] `maturin build --release` produces a valid `.whl`
+- [ ] Commit and open PR → `main`
+
+---
+
+## Phase 11 — Terminal UI (`feat/triad-tui`)
+
+See `stage2-design.md` §"Stage 2b" for screen layouts, Tachyonfx effect plan, and crate structure.
+
+- [ ] `crates/triad-tui/` scaffold + `client.rs` polling AdminClient
+- [ ] `effects.rs` — named Tachyonfx constructors (startup glitch, screen slide, status fade)
+- [ ] Dashboard screen: health + pattern summary + lag bars + backend status
+- [ ] Patterns screen: list with pause/resume/replay + row fade on status change
+- [ ] DLQ screen: per-topic counts + replay/purge with confirm popup
+- [ ] Checkpoints screen: offsets table
+- [ ] Sagas screen: list + expandable step detail + cancel
+- [ ] Config screen: collapsible `triad.yaml` tree + live validate
+- [ ] `triad tui` subcommand wired in `triad-cli/src/main.rs`
+- [ ] Unit tests for App state transitions
+- [ ] Renders correctly at 80×24 and 220×50
+- [ ] Commit and open PR → `main`
 
 ---
 
@@ -240,7 +291,12 @@ Phase 4: triad-cli           ──┐ (parallel with engine)
                                ▼
 Phase 7: tests
                                ▼
-Phase 8: final gate → v0.1.0
+Phase 8: bug fixes
+                               ▼
+Phase 9: final gate → v0.1.0
+                               ▼
+Phase 10: triad-py  ──┐
+Phase 11: triad-tui ──┘ (parallel)
 ```
 
 ---
