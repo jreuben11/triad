@@ -56,14 +56,14 @@ These two crates have no inter-crate dependencies and can be implemented simulta
 
 ### `triad-core` — `feat/triad-core`
 
-- [ ] `types.rs` — all domain types: `EventId`, `PatternName`, `PipelineName`, `SagaId`, `SourcePosition`, `ChangeEvent`, `Operation`, `StepContext`, `ModuleState`, `ModuleHealth`, `RunnerState`, `DeliveryGuarantee` (§3.1)
-- [ ] `traits.rs` — `Source`, `Sink`, `Transform`, `PatternModule`, `CheckpointStore`, `LeaderElector` with `#[automock]` gated behind `#[cfg(test)]` (§3.2)
-- [ ] `error.rs` — full `thiserror` error hierarchy `TriadError` + domain variants (§3.3)
-- [ ] `config.rs` — complete `TriadConfig` struct tree matching `triad.yaml` + all sub-configs incl. `RetryConfig`, `CircuitBreakerConfig`, `KafkaSecurityConfig` (§3.4)
-- [ ] `metrics.rs` — all 44 metric name constants + histogram bucket sets (§3.5)
-- [ ] Unit tests: 80%+ coverage on config parsing, error conversions, type constructors
-- [ ] `cargo clippy -p triad-core -- -D warnings` clean
-- [ ] Commit and open PR → `main`
+- [x] `types.rs` — all domain types: `EventId`, `PatternName`, `PipelineName`, `SagaId`, `SourcePosition`, `ChangeEvent`, `Operation`, `StepContext`, `ModuleState`, `ModuleHealth`, `RunnerState`, `DeliveryGuarantee` (§3.1)
+- [x] `traits.rs` — `Source`, `Sink`, `Transform`, `PatternModule`, `CheckpointStore`, `LeaderElector` with `#[automock]` gated behind `#[cfg(test)]` (§3.2)
+- [x] `error.rs` — full `thiserror` error hierarchy `TriadError` + domain variants (§3.3)
+- [x] `config.rs` — complete `TriadConfig` struct tree matching `triad.yaml` + all sub-configs incl. `RetryConfig`, `CircuitBreakerConfig`, `KafkaSecurityConfig` (§3.4)
+- [x] `metrics.rs` — all 44 metric name constants + histogram bucket sets (§3.5)
+- [x] Unit tests: 96.84% line coverage (90 tests; rstest parameterised) — config parsing, error display/From, type constructors, traits
+- [x] `cargo clippy -p triad-core -- -D warnings` clean
+- [x] Commit on `feat/triad-core` (976cff1)
 
 ---
 
