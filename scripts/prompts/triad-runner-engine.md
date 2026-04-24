@@ -2,6 +2,9 @@ Implement `engine.rs`, `runner.rs`, `checkpoint.rs`, `shutdown.rs`, `leader/`, a
 per §4.6–§4.9 of triad-physical-design.md.
 Use TDD: write failing tests first, then implement.
 
+## Before starting
+Read `/home/jreuben1/Code/triad/claude-best-practices-learned.md` and apply all documented invariants immediately — do not rediscover known pitfalls.
+
 ## Your working directory
 `/home/jreuben1/Code/triad-worktrees/triad-runner-engine`
 
@@ -47,7 +50,9 @@ export CARGO_TARGET_DIR=/tmp/triad-target-engine
 - `cargo test -p triad-runner` unit tests pass (FSM transitions, shutdown sequence, CAS checkpoint)
 - `cargo clippy -p triad-runner -- -D warnings` clean
 - `cargo check --workspace` clean (engine integrates with all other crates)
-- Commit on branch `feat/triad-runner-engine`
+- Mark all completed items `[x]` in `project-plan.md` (at `/home/jreuben1/Code/triad/project-plan.md`)
+- If you discovered any new pitfalls (permission prompts, cargo/git gotchas), add them to `claude-best-practices-learned.md`
+- Commit implementation **together with** `project-plan.md` and `claude-best-practices-learned.md` in a single commit on branch `feat/triad-runner-engine`
 
 ## Key invariants
 - CancellationToken flows top-down: Runner → PatternEngine → each module task

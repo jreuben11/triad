@@ -1,6 +1,9 @@
 Implement `triad-runner` backend modules per §4.1–§4.4 of triad-physical-design.md.
 This runs after `triad-core` is merged to main.
 
+## Before starting
+Read `/home/jreuben1/Code/triad/claude-best-practices-learned.md` and apply all documented invariants immediately — do not rediscover known pitfalls.
+
 ## Your working directory
 `/home/jreuben1/Code/triad-worktrees/triad-runner-backends`
 
@@ -26,7 +29,9 @@ export CARGO_TARGET_DIR=/tmp/triad-target-runner-backends
 - `cargo check -p triad-runner` compiles cleanly
 - `cargo test -p triad-runner` (unit tests only) passes
 - `cargo clippy -p triad-runner -- -D warnings` is clean
-- Commit on branch `feat/triad-runner-backends`
+- Mark all completed items `[x]` in `project-plan.md` (at `/home/jreuben1/Code/triad/project-plan.md`)
+- If you discovered any new pitfalls (permission prompts, cargo/git gotchas), add them to `claude-best-practices-learned.md`
+- Commit implementation **together with** `project-plan.md` and `claude-best-practices-learned.md` in a single commit on branch `feat/triad-runner-backends`
 
 ## Key invariants (from CLAUDE.md)
 - WAL replication uses `tokio-postgres` replication connection — NOT the sqlx pool

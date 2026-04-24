@@ -196,17 +196,28 @@ Run `/project-status` in any Claude Code tab (or the dedicated `status` tab open
 ### Agent prompts
 Per-agent task descriptions live in `scripts/prompts/<name>.md`. Each prompt specifies the worktree, done criteria, and key invariants. Read these before modifying agent behaviour.
 
+Before starting any agent task, also read `claude-best-practices-learned.md` — it contains accumulated patterns for avoiding permission prompts, git pitfalls, and Cargo anti-patterns discovered across all sessions.
+
 ## Self-optimisation instructions
 
-**After completing each module or phase:**
+**Before starting work**, read `claude-best-practices-learned.md` for accumulated invariants
+from previous sessions. Apply them immediately — do not rediscover known pitfalls.
 
-1. **Update `project-plan.md`**: check off completed items with `[x]`. Add any new sub-tasks discovered during implementation.
+**After completing each module or phase**, do all four steps before opening a PR:
 
-2. **Update this file (`CLAUDE.md`)** when you discover:
-   - A new invariant that must be respected across modules (add it to the "Safety invariants" section)
-   - A pattern or anti-pattern that caused test failures (add a rule to the relevant section)
-   - A crate API gotcha discovered via compiler errors (add a comment in "Rust best practices")
+1. **Update `project-plan.md`**: check off completed items `[x]`. Add any sub-tasks discovered.
 
-3. **Commit CLAUDE.md and project-plan.md changes** together with the implementation commit so the next agent session starts with current context.
+2. **Update `claude-best-practices-learned.md`** when you discover:
+   - A new permission/allowlist pitfall (e.g. a command pattern that triggers prompts)
+   - A Bash call pattern that causes unexpected behaviour (pipes, expansion, exit codes)
+   - A Cargo/nextest/git gotcha not already documented
+   Keep entries concise: **Rule** + **Fix** only. No prose.
 
-4. **Do not pad CLAUDE.md** with information derivable from the code itself. Only add things that would surprise a future agent reading fresh context.
+3. **Update this file (`CLAUDE.md`)** when you discover:
+   - A new safety invariant that must hold across all modules (add to "Safety invariants")
+   - A Rust anti-pattern that caused test failures or clippy errors
+   - A crate API gotcha from compiler errors
+   Do not add anything derivable from reading the code. Only things that would surprise a future agent.
+
+4. **Commit all three files together** (`project-plan.md`, `CLAUDE.md`,
+   `claude-best-practices-learned.md`) with the implementation commit.

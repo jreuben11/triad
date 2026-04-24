@@ -49,10 +49,10 @@ These two crates have no inter-crate dependencies and can be implemented simulta
 
 ### `triad-proto` — `feat/triad-proto`
 
-- [ ] Write `proto/triad_admin.proto` (all message types + RPC service per §2.1)
-- [ ] Write `build.rs` with `tonic_build::configure()` per §2.2
-- [ ] Verify `cargo build -p triad-proto` compiles cleanly
-- [ ] Commit and open PR → `main`
+- [x] Write `proto/triad_admin.proto` (all message types + RPC service per §2.1)
+- [x] Write `build.rs` with `tonic_build::configure()` per §2.2
+- [x] Verify `cargo build -p triad-proto` compiles cleanly
+- [x] Commit and merge → `main` (8206433)
 
 ### `triad-core` — `feat/triad-core`
 

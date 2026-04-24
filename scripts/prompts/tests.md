@@ -1,6 +1,9 @@
 Implement the full integration and load test suite per §8 of triad-physical-design.md.
 Runs after all feature branches are merged to main.
 
+## Before starting
+Read `/home/jreuben1/Code/triad/claude-best-practices-learned.md` and apply all documented invariants immediately — do not rediscover known pitfalls.
+
 ## Your working directory
 `/home/jreuben1/Code/triad-worktrees/tests`
 
@@ -24,6 +27,8 @@ export CARGO_TARGET_DIR=/tmp/triad-target-tests
 - All tests in `#[cfg(feature = "integration")]` blocks
 - `cargo nextest run --workspace --features integration` passes
 - `cargo llvm-cov nextest --workspace --fail-under-lines 80` passes
-- Commit on branch `feat/tests`
+- Mark all completed items `[x]` in `project-plan.md` (at `/home/jreuben1/Code/triad/project-plan.md`)
+- If you discovered any new pitfalls (permission prompts, cargo/git gotchas), add them to `claude-best-practices-learned.md`
+- Commit implementation **together with** `project-plan.md` and `claude-best-practices-learned.md` in a single commit on branch `feat/tests`
 
 Output <promise>DONE</promise> when all criteria are met.

@@ -1,6 +1,9 @@
 Implement `patterns/saga.rs` and `patterns/eos.rs` per §4.5 of triad-physical-design.md.
 Use TDD: write failing tests first, then implement, then fix until green.
 
+## Before starting
+Read `/home/jreuben1/Code/triad/claude-best-practices-learned.md` and apply all documented invariants immediately — do not rediscover known pitfalls.
+
 ## Your working directory
 `/home/jreuben1/Code/triad-worktrees/triad-runner-patterns-saga-eos`
 
@@ -41,6 +44,8 @@ export CARGO_TARGET_DIR=/tmp/triad-target-saga-eos
 - `cargo test -p triad-runner` passes with zero failures
 - `cargo llvm-cov -p triad-runner` shows ≥90% for saga.rs and eos.rs
 - `cargo clippy -p triad-runner -- -D warnings` clean
-- Commit on branch `feat/triad-runner-patterns-saga-eos`
+- Mark all completed items `[x]` in `project-plan.md` (at `/home/jreuben1/Code/triad/project-plan.md`)
+- If you discovered any new pitfalls (permission prompts, cargo/git gotchas), add them to `claude-best-practices-learned.md`
+- Commit implementation **together with** `project-plan.md` and `claude-best-practices-learned.md` in a single commit on branch `feat/triad-runner-patterns-saga-eos`
 
 Output <promise>DONE</promise> when all criteria are met.

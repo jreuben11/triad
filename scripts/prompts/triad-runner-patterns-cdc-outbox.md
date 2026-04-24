@@ -2,6 +2,9 @@ Implement the CDC/Outbox/Inbox/Cache/Webhook/FeatureFlag/RateLimit/DLQ/FeatureSt
 per §4.5 of triad-physical-design.md.
 This runs after backends are merged to main.
 
+## Before starting
+Read `/home/jreuben1/Code/triad/claude-best-practices-learned.md` and apply all documented invariants immediately — do not rediscover known pitfalls.
+
 ## Your working directory
 `/home/jreuben1/Code/triad-worktrees/triad-runner-patterns-cdc-outbox`
 
@@ -30,7 +33,9 @@ export CARGO_TARGET_DIR=/tmp/triad-target-patterns-1
 - `cargo check -p triad-runner` clean
 - `cargo test -p triad-runner` unit tests pass
 - `cargo clippy -p triad-runner -- -D warnings` clean
-- Commit on branch `feat/triad-runner-patterns-cdc-outbox`
+- Mark all completed items `[x]` in `project-plan.md` (at `/home/jreuben1/Code/triad/project-plan.md`)
+- If you discovered any new pitfalls (permission prompts, cargo/git gotchas), add them to `claude-best-practices-learned.md`
+- Commit implementation **together with** `project-plan.md` and `claude-best-practices-learned.md` in a single commit on branch `feat/triad-runner-patterns-cdc-outbox`
 
 ## Key invariants (from CLAUDE.md — do not violate)
 - DLQ topic: always `triad.dlq.{source_topic}` — never `{source_topic}.dlq`

@@ -1,6 +1,9 @@
 Implement `triad-cli` per §6 of triad-physical-design.md.
 Runs after triad-runner-engine is merged.
 
+## Before starting
+Read `/home/jreuben1/Code/triad/claude-best-practices-learned.md` and apply all documented invariants immediately — do not rediscover known pitfalls.
+
 ## Your working directory
 `/home/jreuben1/Code/triad-worktrees/triad-cli`
 
@@ -19,7 +22,9 @@ export CARGO_TARGET_DIR=/tmp/triad-target-cli
 - `cargo build -p triad-cli` produces the `triad` binary
 - `./target/debug/triad --help` prints usage for all subcommands
 - `cargo clippy -p triad-cli -- -D warnings` clean
-- Commit on branch `feat/triad-cli`
+- Mark all completed items `[x]` in `project-plan.md` (at `/home/jreuben1/Code/triad/project-plan.md`)
+- If you discovered any new pitfalls (permission prompts, cargo/git gotchas), add them to `claude-best-practices-learned.md`
+- Commit implementation **together with** `project-plan.md` and `claude-best-practices-learned.md` in a single commit on branch `feat/triad-cli`
 
 ## Constraints
 - Use `anyhow` for top-level error propagation in the binary
