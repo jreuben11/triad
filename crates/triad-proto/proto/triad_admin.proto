@@ -1,0 +1,120 @@
+syntax = "proto3";
+package triad.admin.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service TriadAdmin {
+  // Health
+  rpc Live    (google.protobuf.Empty) returns (LiveResponse);
+  rpc Ready   (google.protobuf.Empty) returns (ReadyResponse);
+  rpc Started (google.protobuf.Empty) returns (StartedResponse);
+
+  // Patterns
+  rpc ListPatterns  (google.protobuf.Empty) returns (ListPatternsResponse);
+  rpc PausePattern  (PatternRequest)        returns (google.protobuf.Empty);
+  rpc ResumePattern (PatternRequest)        returns (google.protobuf.Empty);
+  rpc ReplayPattern (PatternRequest)        returns (google.protobuf.Empty);
+
+  // Lag
+  rpc GetLag (google.protobuf.Empty) returns (LagResponse);
+
+  // DLQ
+  rpc ListDlq   (DlqRequest)  returns (DlqListResponse);
+  rpc ReplayDlq (DlqRequest)  returns (google.protobuf.Empty);
+  rpc DropDlq   (DlqRequest)  returns (google.protobuf.Empty);
+
+  // Saga
+  rpc ListSagas   (google.protobuf.Empty) returns (SagaListResponse);
+  rpc InspectSaga (SagaRequest)           returns (SagaInspectResponse);
+  rpc CancelSaga  (SagaRequest)           returns (google.protobuf.Empty);
+
+  // Config
+  rpc ReloadConfig (google.protobuf.Empty) returns (google.protobuf.Empty);
+}
+
+message LiveResponse {
+  string status         = 1;
+  uint64 uptime_seconds = 2;
+}
+
+message BackendHealth {
+  string status     = 1;   // "ok" | "degraded" | "down"
+  uint32 latency_ms = 2;
+}
+
+message PatternHealth {
+  string status    = 1;   // "running" | "paused" | "recovering" | "draining"
+  int64  lag       = 2;
+  uint32 in_flight = 3;
+}
+
+message ReadyResponse {
+  string                        status              = 1;
+  map<string, BackendHealth>    backends            = 2;
+  map<string, PatternHealth>    patterns            = 3;
+  bool                          cold_start_complete = 4;
+  bool                          drain_mode          = 5;
+  bool                          leader              = 6;
+}
+
+message StartedResponse {
+  string status               = 1;
+  bool   cold_start_complete  = 2;
+  uint32 patterns_loaded      = 3;
+  uint64 startup_duration_ms  = 4;
+}
+
+message PatternRequest  { string name  = 1; }
+message SagaRequest     { string id    = 1; }
+message DlqRequest      { string topic = 1; }
+
+message LagEntry {
+  string pattern_name  = 1;
+  string topic         = 2;
+  int32  partition     = 3;
+  int64  lag_messages  = 4;
+}
+
+message LagResponse          { repeated LagEntry entries = 1; }
+
+message DlqEntry {
+  string topic          = 1;
+  int64  message_count  = 2;
+  google.protobuf.Timestamp last_message_at = 3;
+}
+
+message DlqListResponse      { repeated DlqEntry entries  = 1; }
+
+message SagaSummary {
+  string saga_id      = 1;
+  string saga_name    = 2;
+  int32  current_step = 3;
+  string status       = 4;
+  google.protobuf.Timestamp started_at  = 5;
+  google.protobuf.Timestamp updated_at  = 6;
+}
+
+message SagaListResponse     { repeated SagaSummary sagas  = 1; }
+
+message SagaStepRecord {
+  int32  step_index  = 1;
+  string step_name   = 2;
+  string outcome     = 3;
+  uint64 duration_ms = 4;
+}
+
+message SagaInspectResponse {
+  SagaSummary              summary = 1;
+  bytes                    state   = 2;
+  repeated SagaStepRecord  steps   = 3;
+}
+
+message ListPatternsResponse { repeated PatternSummary patterns = 1; }
+
+message PatternSummary {
+  string name          = 1;
+  string pattern_type  = 2;
+  string status        = 3;
+  double throughput_rps = 4;
+}
