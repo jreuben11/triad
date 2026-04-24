@@ -17,6 +17,7 @@ Read `/home/jreuben1/Code/triad/claude-best-practices-learned.md` and apply all 
 - Mark all completed items `[x]` in `project-plan.md` (at `/home/jreuben1/Code/triad/project-plan.md`)
 - If you discovered any new pitfalls (permission prompts, cargo/git gotchas), add them to `claude-best-practices-learned.md`
 - Commit implementation **together with** `project-plan.md` and `claude-best-practices-learned.md` in a single commit on branch `feat/triad-proto`
+- Open a pull request: `gh pr create --title "feat(proto): implement triad-proto crate" --body "Implements §2 of triad-physical-design.md. All checks pass."`
 
 ## Constraints
 - Read triad-physical-design.md §2 for the exact proto schema — do not invent fields

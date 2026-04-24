@@ -32,6 +32,7 @@ export CARGO_TARGET_DIR=/tmp/triad-target-runner-backends
 - Mark all completed items `[x]` in `project-plan.md` (at `/home/jreuben1/Code/triad/project-plan.md`)
 - If you discovered any new pitfalls (permission prompts, cargo/git gotchas), add them to `claude-best-practices-learned.md`
 - Commit implementation **together with** `project-plan.md` and `claude-best-practices-learned.md` in a single commit on branch `feat/triad-runner-backends`
+- Open a pull request: `gh pr create --title "feat(runner): implement backend clients (PG, Kafka, Redis, circuit breaker)" --body "Implements §4.1–§4.4 of triad-physical-design.md. All unit tests pass."`
 
 ## Key invariants (from CLAUDE.md)
 - WAL replication uses `tokio-postgres` replication connection — NOT the sqlx pool

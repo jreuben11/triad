@@ -36,6 +36,7 @@ export CARGO_TARGET_DIR=/tmp/triad-target-patterns-1
 - Mark all completed items `[x]` in `project-plan.md` (at `/home/jreuben1/Code/triad/project-plan.md`)
 - If you discovered any new pitfalls (permission prompts, cargo/git gotchas), add them to `claude-best-practices-learned.md`
 - Commit implementation **together with** `project-plan.md` and `claude-best-practices-learned.md` in a single commit on branch `feat/triad-runner-patterns-cdc-outbox`
+- Open a pull request: `gh pr create --title "feat(runner): implement CDC/Outbox/Inbox/Cache/Webhook/FeatureFlag/RateLimit/DLQ/FeatureStore patterns" --body "Implements §4.5 (non-saga patterns) of triad-physical-design.md. All unit tests pass."`
 
 ## Key invariants (from CLAUDE.md — do not violate)
 - DLQ topic: always `triad.dlq.{source_topic}` — never `{source_topic}.dlq`

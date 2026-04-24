@@ -47,5 +47,6 @@ export CARGO_TARGET_DIR=/tmp/triad-target-saga-eos
 - Mark all completed items `[x]` in `project-plan.md` (at `/home/jreuben1/Code/triad/project-plan.md`)
 - If you discovered any new pitfalls (permission prompts, cargo/git gotchas), add them to `claude-best-practices-learned.md`
 - Commit implementation **together with** `project-plan.md` and `claude-best-practices-learned.md` in a single commit on branch `feat/triad-runner-patterns-saga-eos`
+- Open a pull request: `gh pr create --title "feat(runner): implement Saga orchestrator and EOS coordinator" --body "Implements §4.5 (saga + EOS) of triad-physical-design.md. ≥90% coverage on saga.rs and eos.rs."`
 
 Output <promise>DONE</promise> when all criteria are met.

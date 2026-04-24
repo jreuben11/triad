@@ -25,6 +25,7 @@ export CARGO_TARGET_DIR=/tmp/triad-target-cli
 - Mark all completed items `[x]` in `project-plan.md` (at `/home/jreuben1/Code/triad/project-plan.md`)
 - If you discovered any new pitfalls (permission prompts, cargo/git gotchas), add them to `claude-best-practices-learned.md`
 - Commit implementation **together with** `project-plan.md` and `claude-best-practices-learned.md` in a single commit on branch `feat/triad-cli`
+- Open a pull request: `gh pr create --title "feat(cli): implement triad CLI — all subcommands + AdminClient" --body "Implements §6 of triad-physical-design.md. triad --help shows all subcommands."`
 
 ## Constraints
 - Use `anyhow` for top-level error propagation in the binary

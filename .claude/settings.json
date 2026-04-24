@@ -17,7 +17,8 @@
       "Bash(zellij action go-to-tab-name *)",
       "Bash(zellij action close-tab)",
       "Bash(ls -1d *)",
-      "Bash(CARGO_TARGET_DIR=/tmp/triad-target-*)"
+      "Bash(CARGO_TARGET_DIR=/tmp/triad-target-*)",
+      "Bash(gh pr *)"
     ],
     "deny": [],
     "ask": []

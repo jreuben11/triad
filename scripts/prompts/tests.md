@@ -30,5 +30,6 @@ export CARGO_TARGET_DIR=/tmp/triad-target-tests
 - Mark all completed items `[x]` in `project-plan.md` (at `/home/jreuben1/Code/triad/project-plan.md`)
 - If you discovered any new pitfalls (permission prompts, cargo/git gotchas), add them to `claude-best-practices-learned.md`
 - Commit implementation **together with** `project-plan.md` and `claude-best-practices-learned.md` in a single commit on branch `feat/tests`
+- Open a pull request: `gh pr create --title "test: full integration and load test suite" --body "Implements §8 of triad-physical-design.md. All integration tests pass; workspace coverage ≥80%."`
 
 Output <promise>DONE</promise> when all criteria are met.
