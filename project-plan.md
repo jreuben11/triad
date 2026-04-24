@@ -111,8 +111,8 @@ Launch: `/zellij-launch phase 2` → switch to `phase2-saga-eos` tab → type `/
 - [x] `patterns/saga.rs` — durable saga orchestrator with compensation, `JoinSet` steps, PG checkpoint (§4.5)
 - [x] `patterns/eos.rs` — exactly-once coordinator: Kafka txn + Redis NX + PG outbox (§4.5)
 - [x] Unit tests: 90%+ coverage (saga.rs 92.99%, eos.rs 99.13%)
-- [ ] Integration test: end-to-end saga with compensation scenario
-- [ ] Integration test: EOS with simulated producer crash mid-transaction
+- [x] Integration test: end-to-end saga with compensation scenario (`test_saga.rs::test_saga_compensation_path_on_step_failure`)
+- [ ] Integration test: EOS with simulated producer crash mid-transaction (requires Kafka; `test_eos.rs` covers PG-level dedup only — Kafka transaction abort not yet tested)
 - [x] Commit and open PR → `main`
 
 ---
