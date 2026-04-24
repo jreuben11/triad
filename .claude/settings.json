@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo clippy *)",
+      "Bash(cargo nextest *)",
+      "Bash(cargo fmt *)",
+      "Bash(cargo llvm-cov *)",
+      "Bash(cargo test *)",
+      "Bash(cargo build *)",
+      "Bash(cargo install *)",
+      "Bash(git worktree *)",
+      "Bash(git merge --ff-only *)",
+      "Bash(git branch *)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
