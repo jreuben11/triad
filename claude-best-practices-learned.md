@@ -224,3 +224,41 @@ between each pair; without it, `close-tab` may fire before the tab switch comple
 if found, merges via `gh pr merge <branch> --merge --delete-branch` (CI-gated).
 Branches without a PR fall back to the direct `git merge --ff-only` path (legacy/manual).
 **Fix:** Add `Bash(gh pr *)` to the project allowlist so `gh pr list` and `gh pr merge` don't prompt.
+
+---
+
+## mockall Trait Design Pitfalls
+
+### mockall cannot handle `&[&str]` (doubly-borrowed slice) in trait methods
+**Rule:** `mockall::automock` cannot generate mock expectations for methods with `&[&str]`
+parameters — the compiler raises "missing lifetime specifier" and "`&` without an explicit
+lifetime name cannot be used here" errors in the test binary.
+**Fix:** Change trait methods to use `Vec<String>` instead of `&[&str]`. Convert at the
+call site inside the production implementation: `features.iter().map(|s| s.to_string()).collect()`.
+The public API (e.g. `FeatureServer::lookup`) can still accept `&[&str]` — only the narrow
+mock-targeted trait needs owned types.
+
+### mockall cannot handle `Option<&str>` or `&str` in trait method signatures
+**Rule:** Methods with `event_id: &str` or `error: Option<&str>` parameters cause lifetime
+errors when mockall generates the mock. Affects any trait annotated with `#[automock]`.
+**Fix:** Use owned types throughout: `String`, `Option<String>`. Update all call sites to
+pass `.clone()` or `.to_string()` values.
+
+### MockCheckpointStore from triad-core is not available in runner tests
+**Rule:** `#[cfg_attr(test, mockall::automock)]` in a library crate generates the mock only
+when *that crate* is compiled with `cfg(test)`. When used as a dependency, `cfg(test)` is
+false, so `MockCheckpointStore` does not exist in the downstream crate's test binary.
+**Fix:** Define a local `NoopCheckpointStore` struct in the test module:
+```rust
+struct NoopCheckpointStore;
+#[async_trait::async_trait]
+impl CheckpointStore for NoopCheckpointStore {
+    async fn load(&self, _: &PatternName, _: &PipelineName) -> Result<Option<CheckpointRow>, CheckpointError> { Ok(None) }
+    async fn save(&self, _: &CheckpointRow, _: i64) -> Result<(), CheckpointError> { Ok(()) }
+}
+```
+
+### mockall::mock::MockFoo does not exist — use MockFoo directly
+**Rule:** The path `mockall::mock::MockFooBar` is invalid — `mock` is not a module in mockall.
+The generated mock type is named `MockFooBar` in the same module scope where the trait is defined.
+**Fix:** Use `MockFooBar::new()` directly (imported via `use super::*` in the test module).

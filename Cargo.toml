@@ -88,6 +88,10 @@ backoff          = { version = "0.4", features = ["tokio"] }
 uuid             = { version = "1", features = ["v4", "v7", "serde"] }
 chrono           = { version = "0.4", features = ["serde"] }
 async-trait      = { version = "0.1" }
+dashmap          = { version = "6" }
+hmac             = { version = "0.12" }
+sha2             = { version = "0.10" }
+hex              = { version = "0.4" }
 
 # ── K8s leader election ────────────────────────────────────────────────────────
 kube             = { version = "0.95", features = ["runtime", "derive", "rustls-tls"] }

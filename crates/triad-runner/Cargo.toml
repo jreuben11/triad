@@ -68,6 +68,10 @@ metrics-exporter-prometheus = { workspace = true }
 # Utilities
 uuid    = { workspace = true }
 chrono  = { workspace = true }
+dashmap = { workspace = true }
+hmac    = { workspace = true }
+sha2    = { workspace = true }
+hex     = { workspace = true }
 
 # K8s leader election (optional: only compiled for Mode 3)
 kube        = { workspace = true, optional = true }
