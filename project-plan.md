@@ -78,7 +78,7 @@ These two crates have no inter-crate dependencies and can be implemented simulta
 - [x] Unit tests for each backend using mockall traits; no real I/O in unit tests (36 tests, all pass)
 - [x] Integration tests in `tests/integration/` using `testcontainers-modules` for PG + Redis; gated behind `integration` feature
 - [x] `cargo clippy -p triad-runner -- -D warnings` clean
-- [ ] Commit and open PR → `main`
+- [x] Commit and open PR → `main` (e108cd5, PR #1)
 
 ---
 
