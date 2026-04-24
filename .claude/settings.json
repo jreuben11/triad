@@ -10,7 +10,12 @@
       "Bash(cargo install *)",
       "Bash(git worktree *)",
       "Bash(git merge --ff-only *)",
-      "Bash(git branch *)"
+      "Bash(git merge *)",
+      "Bash(git rebase *)",
+      "Bash(git -C *)",
+      "Bash(git branch *)",
+      "Bash(zellij action go-to-tab-name *)",
+      "Bash(zellij action close-tab)"
     ],
     "deny": [],
     "ask": []
