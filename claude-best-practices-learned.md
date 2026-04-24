@@ -250,6 +250,19 @@ result is garbled text echoed into the tab rather than a working command.
 the short string `bash /tmp/run-<tab>.sh` — the `$(cat ...)` is evaluated by the tab's shell
 at runtime, not the parent shell.
 
+### zellij: never use sleep + write-chars to send a follow-up message to claude
+**Rule:** `sleep N && zellij action write-chars "prompt"` is unreliable — focus shifts during
+the sleep and the text lands in the wrong pane (often the shell, not claude's TUI input).
+**Fix:** Do NOT automate the "wait for TUI then send prompt" sequence. Send only the
+`claude --dangerously-skip-permissions` command via write-chars, then tell the user to switch
+to the tab manually and paste the prompt once the TUI is visible.
+
+### claude CLI: start with no args to guarantee interactive TUI
+**Rule:** `claude --dangerously-skip-permissions "message"` sometimes runs in non-interactive
+print mode (processes the prompt and exits) rather than showing the interactive TUI.
+**Fix:** Always start `claude --dangerously-skip-permissions` with no arguments to guarantee the
+TUI, then type or paste the prompt once the UI has rendered.
+
 ---
 
 ## Inter-Agent Eventing
@@ -324,6 +337,7 @@ impl CheckpointStore for NoopCheckpointStore {
 **Rule:** The path `mockall::mock::MockFooBar` is invalid — `mock` is not a module in mockall.
 The generated mock type is named `MockFooBar` in the same module scope where the trait is defined.
 **Fix:** Use `MockFooBar::new()` directly (imported via `use super::*` in the test module).
+<<<<<<< HEAD
 
 ---
 
@@ -355,3 +369,42 @@ retries are fast enough for unit tests (total ~150ms for 2 retries).
 offline mode). Since neither exists in this repo, all SQL in `checkpoint.rs` and patterns
 uses `sqlx::query` (runtime) with `.bind()`.
 **Fix:** Never use `sqlx::query!` in triad-runner. Use `sqlx::query` for all runtime queries.
+
+---
+
+## SDK Crate Pitfalls (triad-sdk)
+
+### sqlx PgPool::connect_lazy requires a Tokio runtime even in sync tests
+**Rule:** `sqlx::PgPool::connect_lazy(...)` panics with "this functionality requires a Tokio context"
+when called from a non-async test, even though it is nominally "lazy" (no connection is made).
+**Fix:** Mark all tests that construct a `PgPool` (even via `connect_lazy`) as `#[tokio::test]`.
+
+### clippy: `from_str` clashes with `std::str::FromStr::from_str`
+**Rule:** `clippy::should_implement_trait` rejects any method named `from_str` that doesn't
+implement the `std::str::FromStr` trait. This applies even to associated functions on newtypes.
+**Fix:** Rename to something less ambiguous (e.g., `wrap`, `parse_key`, `of`) or implement the
+`FromStr` trait properly.
+
+### CbConfig construction: use `From<&CircuitBreakerConfig>` instead of field literals
+**Rule:** `CbConfig` in triad-runner exposes `half_open_after: Duration`, NOT `timeout_ms: u64`.
+Constructing the struct with `timeout_ms: u64` fails to compile.
+**Fix:** Use `CbConfig::from(&config.circuit_breakers)` — a `From<&CircuitBreakerConfig>` impl
+is already provided and converts `timeout_ms → Duration::from_millis(timeout_ms)`.
+
+### `git rebase main` fails when `.claude/settings.json` is untracked
+**Rule:** Worktree rebase fails with "untracked working tree files would be overwritten" when
+`.claude/settings.json` exists but is not tracked by git. The file must be temporarily removed
+before rebase and restored after.
+**Fix:** `cp .claude/settings.json /tmp/backup.json && rm .claude/settings.json && git rebase main && cp /tmp/backup.json .claude/settings.json`
+
+### triad-runner patterns: `FlagStore` / `FlagEvaluation` not re-exported at top level
+**Rule:** `triad_runner::patterns::FlagStore` does not exist. Only a subset of types are
+re-exported at `triad_runner::patterns::*` (see patterns/mod.rs `pub use` statements).
+`FlagStore` and `FeatureFlag` live at `triad_runner::patterns::feature_flag::{FlagStore, FeatureFlag}`.
+**Fix:** Import directly from the sub-module: `use triad_runner::patterns::feature_flag::FlagStore;`
+
+### Tower middleware: use type alias for complex `Arc<dyn Fn(...)>` types
+**Rule:** `clippy::type_complexity` fires on struct fields with type
+`Arc<dyn Fn(&Request<Body>) -> String + Send + Sync>`.
+**Fix:** Define a module-level type alias: `pub type KeyFn = Arc<dyn Fn(&Request<Body>) -> String + Send + Sync>;`
+and use it in both the struct definition and the `layer()` method.
