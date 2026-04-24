@@ -75,7 +75,9 @@ Install `cargo-nextest` if not present: `cargo install cargo-nextest cargo-llvm-
 - K8s leader election code (`K8sLeaseLeader`, kube client) is gated behind `#[cfg(feature = "kubernetes")]` in `triad-runner`.
 - The `NoopLeader` (always-leader) is the default and must always compile without the feature.
 
-## Pre-commit gate — ALL must pass before any commit
+## Quality gate — run this sequence before every `cargo nextest` invocation and before every commit
+
+Always run in order. Never skip to nextest without the preceding checks passing first.
 
 ```bash
 cargo fmt --check                                            # 1. formatting
@@ -89,9 +91,12 @@ Never commit with failing tests. Never commit with clippy warnings. If tests fai
 
 ## Post-merge / post-rebase gate — MANDATORY
 
-After every `git merge`, `git rebase`, or conflict resolution, run the full unit test suite before creating any commit or pushing:
+After every `git merge`, `git rebase`, or conflict resolution, run the full quality gate before creating any commit or pushing:
 
 ```bash
+cargo fmt --check
+cargo clippy --workspace -- -D warnings
+cargo check --workspace
 cargo nextest run --workspace
 ```
 
