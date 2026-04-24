@@ -592,13 +592,15 @@ use crate::error::ConfigError;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TriadConfig {
-    pub backends:     BackendsConfig,
-    pub patterns:     Vec<PatternConfig>,
-    pub cold_start:   ColdStartConfig,
-    pub delivery:     DeliveryConfig,
-    pub observability: ObservabilityConfig,
-    pub shutdown:     ShutdownConfig,
-    pub admin:        AdminConfig,
+    pub backends:         BackendsConfig,
+    pub patterns:         Vec<PatternConfig>,
+    pub cold_start:       ColdStartConfig,
+    pub delivery:         DeliveryConfig,
+    pub observability:    ObservabilityConfig,
+    pub shutdown:         ShutdownConfig,
+    pub admin:            AdminConfig,
+    pub retry:            RetryConfig,
+    pub circuit_breakers: CircuitBreakerConfig,
 }
 
 impl TriadConfig {
@@ -625,45 +627,95 @@ pub struct BackendsConfig {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PostgresConfig {
-    pub url:                 String,    // secret ref or DSN
-    pub max_connections:     u32,
-    pub wal_level:           Option<String>,
-    pub replication_slot:    Option<String>,
-    pub publication:         Option<String>,
-    pub ssl_mode:            String,
+    pub url:                     String,          // secret ref or DSN
+    pub replication_url:         Option<String>,  // separate replication connection DSN
+    pub max_connections:         u32,
+    pub min_idle:                Option<u32>,
+    pub connection_timeout_ms:   u64,
+    pub statement_timeout_ms:    Option<u64>,
+    pub wal_level:               Option<String>,
+    pub replication_slot:        Option<String>,
+    pub publication:             Option<String>,
+    pub ssl_mode:                String,
+    pub ssl_root_cert:           Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct KafkaConfig {
     pub brokers:             Vec<String>,
-    pub security_protocol:   String,
+    pub security:            KafkaSecurityConfig,
     pub producer:            KafkaProducerConfig,
     pub consumer:            KafkaConsumerConfig,
     pub schema_registry_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct KafkaSecurityConfig {
+    pub protocol:        String,            // PLAINTEXT | SSL | SASL_PLAINTEXT | SASL_SSL
+    pub sasl_mechanism:  Option<String>,    // PLAIN | SCRAM-SHA-256 | GSSAPI
+    pub sasl_username:   Option<String>,
+    pub sasl_password:   Option<String>,    // use secret ref in production
+    pub ssl_ca_cert:     Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct KafkaProducerConfig {
-    pub transactional_id_prefix: String,
-    pub acks:                    String,
-    pub compression_type:        String,
-    pub transaction_timeout_ms:  u64,
+    pub transactional_id_prefix:    String,
+    pub acks:                       String,
+    pub compression_type:           String,
+    pub transaction_timeout_ms:     u64,
+    pub enable_idempotence:         bool,
+    pub max_in_flight_requests:     u32,
+    pub batch_size:                 u32,
+    pub linger_ms:                  u64,
+    pub request_timeout_ms:         u64,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct KafkaConsumerConfig {
-    pub group_id:            String,
-    pub isolation_level:     String,   // "read_committed"
-    pub auto_offset_reset:   String,
-    pub max_poll_interval_ms: u64,
+    pub group_id:               String,
+    pub isolation_level:        String,     // "read_committed"
+    pub auto_offset_reset:      String,
+    pub max_poll_interval_ms:   u64,
+    pub max_poll_records:       u32,
+    pub fetch_max_bytes:        u32,
+    pub session_timeout_ms:     u64,
+    pub heartbeat_interval_ms:  u64,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct RedisConfig {
-    pub mode:           RedisMode,     // Standalone | Sentinel | Cluster
-    pub url:            String,
-    pub pool_size:      u32,
-    pub connection_timeout_ms: u64,
+    pub mode:                   RedisMode,  // Standalone | Sentinel | Cluster
+    pub url:                    String,
+    pub pool_size:              u32,
+    pub min_idle:               Option<u32>,
+    pub connection_timeout_ms:  u64,
+    pub read_timeout_ms:        u64,
+    pub write_timeout_ms:       u64,
+    pub max_retries:            u32,
+    pub tls:                    Option<RedisTlsConfig>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RedisTlsConfig {
+    pub ca_cert:  Option<String>,
+    pub insecure: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RetryConfig {
+    pub max_attempts:     u32,
+    pub initial_delay_ms: u64,
+    pub max_delay_ms:     u64,
+    pub multiplier:       f64,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CircuitBreakerConfig {
+    pub failure_threshold:      u32,
+    pub success_threshold:      u32,
+    pub timeout_ms:             u64,
+    pub half_open_max_calls:    u32,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -687,6 +739,15 @@ pub enum PatternConfig {
     RateLimit(RateLimitPatternConfig),
     FeatureStore(FeatureStorePatternConfig),
     Idempotency(IdempotencyPatternConfig),
+    // Phase 2 patterns (§13 system design — not in MVP):
+    // Enrich(EnrichPatternConfig),         // stream enrichment
+    // Aggregate(AggregatePatternConfig),   // event sourcing / CQRS
+    // Lock(LockPatternConfig),             // distributed locking
+    // Session(SessionPatternConfig),       // session state store
+    // Fanout(FanoutPatternConfig),         // pub/sub fan-out
+    // Pipeline(PipelinePatternConfig),     // multi-stage streaming
+    // Tenant(TenantPatternConfig),         // multi-tenant routing
+    // SearchIndex(SearchIndexPatternConfig), // search index sync
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -924,6 +985,21 @@ pub mod names {
     pub const RETRY_ATTEMPTS_TOTAL:           &str = "triad_retry_attempts_total";
     pub const DLQ_MESSAGES_TOTAL:             &str = "triad_dlq_messages_total";
     pub const DB_OPERATION_DURATION:          &str = "triad_db_operation_duration_seconds";
+    // Cache derived metrics (§15.3)
+    pub const CACHE_HIT_RATIO:                &str = "triad_cache_hit_ratio";
+    // Feature store metrics (§15.3)
+    pub const FEATURE_FLAG_SYNC_LAG:          &str = "triad_feature_flag_sync_lag_seconds";
+    pub const FEATURE_STORE_LOOKUP_DURATION:  &str = "triad_feature_store_lookup_duration_seconds";
+    pub const FEATURE_STORE_FRESHNESS:        &str = "triad_feature_store_freshness_seconds";
+    pub const COLD_START_RECORDS_TOTAL:       &str = "triad_cold_start_records_total";
+    // Connection pool additional metrics (§15.3)
+    pub const CONN_POOL_IDLE:                 &str = "triad_conn_pool_idle";
+    pub const CONN_POOL_WAIT_SECONDS:         &str = "triad_conn_pool_wait_seconds";
+    pub const REPLICATION_LAG_SECONDS:        &str = "triad_replication_lag_seconds";
+    // Flow control (§15.3)
+    pub const BACKPRESSURE_ACTIVE:            &str = "triad_backpressure_active";
+    // Saga compensation (§15.3)
+    pub const SAGA_COMPENSATION_TOTAL:        &str = "triad_saga_compensation_total";
 }
 
 /// Histogram bucket sets for each metric family (§15.5)
@@ -1302,6 +1378,7 @@ pub fn admin_router(state: AdminState) -> axum::Router {
         .route("/dlq/:topic",             get(handlers::list_dlq))
         .route("/dlq/:topic/replay",      post(handlers::replay_dlq))
         .route("/dlq/:topic",             delete(handlers::drop_dlq))
+        .route("/registry",               get(handlers::get_registry))  // §18 pattern registry
         .route("/saga",                   get(handlers::list_sagas))
         .route("/saga/:id",               get(handlers::inspect_saga))
         .route("/saga/:id/cancel",        post(handlers::cancel_saga))

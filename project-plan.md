@@ -1,0 +1,289 @@
+# Triad — Project Plan
+
+> Tracks implementation progress. Check off each item as it is merged to `main`.
+> Agent strategy: **parallel agents** for independent modules, **Ralph loops** for modules requiring iterative TDD.
+
+---
+
+## Worktree layout
+
+| Worktree path | Branch | Agent strategy |
+|---|---|---|
+| `/home/jreuben1/Code/triad` | `main` | integration / merge |
+| `.../triad-worktrees/triad-proto` | `feat/triad-proto` | parallel agent |
+| `.../triad-worktrees/triad-core` | `feat/triad-core` | parallel agent |
+| `.../triad-worktrees/triad-runner-backends` | `feat/triad-runner-backends` | parallel agent |
+| `.../triad-worktrees/triad-runner-patterns-cdc-outbox` | `feat/triad-runner-patterns-cdc-outbox` | parallel agent |
+| `.../triad-worktrees/triad-runner-patterns-saga-eos` | `feat/triad-runner-patterns-saga-eos` | **Ralph loop** |
+| `.../triad-worktrees/triad-runner-engine` | `feat/triad-runner-engine` | **Ralph loop** |
+| `.../triad-worktrees/triad-sdk` | `feat/triad-sdk` | parallel agent |
+| `.../triad-worktrees/triad-cli` | `feat/triad-cli` | parallel agent |
+| `.../triad-worktrees/tests` | `feat/tests` | parallel agent |
+
+---
+
+## Phase 0 — Foundation (no dependencies, run in parallel)
+
+These two crates have no inter-crate dependencies and can be implemented simultaneously.
+
+### `triad-proto` — `feat/triad-proto`
+
+- [ ] Write `proto/triad_admin.proto` (all message types + RPC service per §2.1)
+- [ ] Write `build.rs` with `tonic_build::configure()` per §2.2
+- [ ] Verify `cargo build -p triad-proto` compiles cleanly
+- [ ] Commit and open PR → `main`
+
+### `triad-core` — `feat/triad-core`
+
+- [ ] `types.rs` — all domain types: `EventId`, `PatternName`, `PipelineName`, `SagaId`, `SourcePosition`, `ChangeEvent`, `Operation`, `StepContext`, `ModuleState`, `ModuleHealth`, `RunnerState`, `DeliveryGuarantee` (§3.1)
+- [ ] `traits.rs` — `Source`, `Sink`, `Transform`, `PatternModule`, `CheckpointStore`, `LeaderElector` with `#[automock]` gated behind `#[cfg(test)]` (§3.2)
+- [ ] `error.rs` — full `thiserror` error hierarchy `TriadError` + domain variants (§3.3)
+- [ ] `config.rs` — complete `TriadConfig` struct tree matching `triad.yaml` + all sub-configs incl. `RetryConfig`, `CircuitBreakerConfig`, `KafkaSecurityConfig` (§3.4)
+- [ ] `metrics.rs` — all 44 metric name constants + histogram bucket sets (§3.5)
+- [ ] Unit tests: 80%+ coverage on config parsing, error conversions, type constructors
+- [ ] `cargo clippy -p triad-core -- -D warnings` clean
+- [ ] Commit and open PR → `main`
+
+---
+
+## Phase 1 — Backends (depends on Phase 0, run in parallel after merge)
+
+### `triad-runner` backends — `feat/triad-runner-backends`
+
+- [ ] `backends/postgres.rs` — `PgBackend`: sqlx pool init, migration runner, replication connection via `tokio-postgres` (§4.1)
+- [ ] `backends/kafka.rs` — `KafkaBackend`: `ProducerFactory` (EOS transactional), `ConsumerFactory`, topic admin (§4.2)
+- [ ] `backends/redis.rs` — `RedisPool` enum: Standalone / Cluster / Sentinel dispatch via `deadpool-redis` (§4.3)
+- [ ] `backends/circuit_breaker.rs` — `CircuitBreaker<S>` with `watch::Sender<CbState>`, state machine (§4.4)
+- [ ] Unit tests for each backend using `mockall` traits; no real I/O in unit tests
+- [ ] Integration tests in `tests/` using `testcontainers-modules` for PG + Kafka + Redis
+- [ ] `cargo clippy -p triad-runner -- -D warnings` clean on backends only
+- [ ] Commit and open PR → `main`
+
+---
+
+## Phase 2 — Pattern Modules (depends on Phase 1)
+
+Split into two worktrees to allow parallel work on independent patterns.
+
+### CDC, Outbox, Inbox, Cache, Webhook, FeatureFlag, RateLimit, DLQ, FeatureStore — `feat/triad-runner-patterns-cdc-outbox`
+
+**Strategy: parallel agent** (these patterns are complex but self-contained, mostly I/O with clear specs)
+
+- [ ] `patterns/outbox.rs` — poll `triad_outbox`, produce to Kafka inside transaction, mark published (§4.5)
+- [ ] `patterns/inbox.rs` — consume Kafka, dedup via `triad_inbox` in same PG txn, invoke handler (§4.5)
+- [ ] `patterns/cdc.rs` — WAL replication slot → `pgoutput` decoding → `ChangeEvent` stream (§4.5)
+- [ ] `patterns/cache.rs` — write-through / write-behind / read-through / cold-start modes (§4.5)
+- [ ] `patterns/webhook.rs` — HTTP delivery with retries, DLQ `triad.dlq.{topic}`, circuit breaker (§4.5)
+- [ ] `patterns/feature_flag.rs` — PG flag table → Redis distribution with hot reload (§4.5)
+- [ ] `patterns/rate_limit.rs` — Redis sliding window + token bucket (§4.5)
+- [ ] `patterns/dlq.rs` — `DlqRouter`: route to `triad.dlq.{source_topic}`, replay, purge (§4.5)
+- [ ] `patterns/feature_store.rs` — online/offline feature serving (§4.5)
+- [ ] Unit tests per pattern (mocked backends)
+- [ ] Commit and open PR → `main`
+
+### Saga Orchestrator + EOS Coordinator — `feat/triad-runner-patterns-saga-eos`
+
+**Strategy: Ralph loop** — these require iterative TDD cycles due to complex state machines and transaction semantics.
+
+```
+/ralph-loop "Implement patterns/saga.rs and patterns/eos.rs in
+/home/jreuben1/Code/triad-worktrees/triad-runner-patterns-saga-eos.
+Reference: triad-physical-design.md §4.5 (saga and eos sections).
+Follow TDD: write tests first, implement, run cargo test -p triad-runner,
+fix all failures. Coverage must exceed 90% on these two files.
+Key invariants from CLAUDE.md:
+- EOS: Kafka transaction must wrap message send + send_offsets_to_transaction atomically
+- Saga: checkpoint UPDATE must use WHERE version = $known_version (optimistic locking)
+- Inbox dedup INSERT must be inside same PG txn as business write
+When cargo test passes with >90% coverage output <promise>DONE</promise>" \
+--max-iterations 40 --completion-promise "DONE"
+```
+
+- [ ] `patterns/saga.rs` — durable saga orchestrator with compensation, `JoinSet` steps, PG checkpoint (§4.5)
+- [ ] `patterns/eos.rs` — exactly-once coordinator: Kafka txn + Redis NX + PG outbox (§4.5)
+- [ ] Unit tests: 90%+ coverage
+- [ ] Integration test: end-to-end saga with compensation scenario
+- [ ] Integration test: EOS with simulated producer crash mid-transaction
+- [ ] Commit and open PR → `main`
+
+---
+
+## Phase 3 — Engine + Runner + Shutdown (depends on Phase 2)
+
+**Strategy: Ralph loop** — the supervisor loop and FSM require careful concurrency and cancellation logic.
+
+```
+/ralph-loop "Implement engine.rs, runner.rs, and shutdown.rs in
+/home/jreuben1/Code/triad-worktrees/triad-runner-engine.
+Reference: triad-physical-design.md §4.6, §4.7.
+engine.rs: PatternEngine with JoinSet, supervisor restart loop,
+CancellationToken propagation, backpressure controller.
+runner.rs: Runner FSM (Idle → Starting → Running → Draining → Stopped).
+shutdown.rs: SIGTERM handler, graceful drain with drain_timeout_seconds.
+TDD: write tests first. Run cargo test -p triad-runner after each change.
+Key invariant: CancellationToken flows top-down Runner → Engine → each module.
+When all tests pass output <promise>DONE</promise>" \
+--max-iterations 35 --completion-promise "DONE"
+```
+
+- [ ] `engine.rs` — `PatternEngine`: `JoinSet` supervisor, restart on panic, backpressure controller (§4.6)
+- [ ] `runner.rs` — `Runner` FSM: `Idle → Starting → Running → Draining → Stopped` (§4.7)
+- [ ] `shutdown.rs` — SIGTERM handler, drain with timeout, ordered teardown (§4.6)
+- [ ] `checkpoint.rs` — `PgCheckpointStore`: CAS UPDATE with `version` column (§3.2)
+- [ ] `leader/mod.rs` — `NoopLeader` (always-wins) + `K8sLeaseLeader` behind `#[cfg(feature="kubernetes")]` (§4.9)
+- [ ] Unit tests for FSM transitions, shutdown sequencing
+- [ ] Commit and open PR → `main`
+
+---
+
+## Phase 4 — Admin HTTP + CLI (depends on Phase 3, run in parallel)
+
+### Admin server — part of `feat/triad-runner-engine`
+
+- [ ] `admin/http.rs` — Axum router: all endpoints from §4.8 incl. `/registry`
+- [ ] `admin/handlers.rs` — handler implementations
+- [ ] Health handler returns correct JSON schema per §21.3
+- [ ] `/metrics` handler emits Prometheus text format
+- [ ] Unit tests: each route tested with `axum::test`
+- [ ] Commit (part of engine PR)
+
+### `triad-cli` — `feat/triad-cli`
+
+**Strategy: parallel agent** (CLI is mostly glue code; Clap derive + admin HTTP client)
+
+- [ ] `main.rs` — Clap `Cli` derive tree: `run`, `status`, `pattern`, `checkpoint`, `dlq`, `pipeline`, `config` subcommands (§6.1)
+- [ ] `commands/admin/mod.rs` — `AdminClient`: GET/POST/DELETE via `reqwest` (§6.2)
+- [ ] `commands/run.rs` — load config, start `Runner`, block on SIGTERM
+- [ ] All subcommands wired to AdminClient methods
+- [ ] `cargo clippy -p triad-cli -- -D warnings` clean
+- [ ] Commit and open PR → `main`
+
+---
+
+## Phase 5 — SDK (depends on Phase 1, can run in parallel with Phase 3)
+
+### `triad-sdk` — `feat/triad-sdk`
+
+**Strategy: parallel agent**
+
+- [ ] `instance.rs` — `TriadInstance::start()` / `shutdown()`, embeds `Runner` in-process (§5.1)
+- [ ] `middleware.rs` — `IdempotencyLayer` + `RateLimitLayer` as `tower::Layer` impls (§5.2)
+- [ ] `patterns.rs` — SDK facades: `OutboxPublisher`, `FlagEvaluator`, `SagaBuilder` (§5.3)
+- [ ] `aggregate.rs` — event sourcing aggregate helper
+- [ ] `idempotency.rs` — idempotency key helpers
+- [ ] Unit tests with mocked `Runner`
+- [ ] Compile check in Mode 1 configuration (no `kubernetes` feature)
+- [ ] Commit and open PR → `main`
+
+---
+
+## Phase 6 — Database Migrations (can run in parallel with Phase 1)
+
+- [ ] `0001_triad_outbox.sql` — outbox table + relay_status index
+- [ ] `0002_triad_inbox.sql` — inbox dedup table
+- [ ] `0003_triad_checkpoints.sql` — checkpoints with `version BIGINT` + optimistic lock
+- [ ] `0004_triad_saga.sql` — `triad_saga_checkpoints` + `triad_saga_steps`
+- [ ] `0005_webhook.sql` — `webhook_subscriptions` + `webhook_deliveries`
+- [ ] `0006_feature_flags.sql` — `feature_flags` + `flag_audit`
+- [ ] `0007_idempotency_keys.sql` — idempotency key store
+- [ ] `sqlx migrate run` succeeds against a fresh Postgres (testcontainers)
+- [ ] Commit (part of backends PR or separate)
+
+---
+
+## Phase 7 — Integration + Load Tests — `feat/tests`
+
+**Strategy: parallel agent after Phase 6 complete**
+
+- [ ] `tests/integration/helpers.rs` — `TestStack`: boots PG + Kafka + Redis via testcontainers once per binary
+- [ ] `tests/integration/test_outbox.rs` — outbox → Kafka → inbox round-trip
+- [ ] `tests/integration/test_cdc.rs` — PG WAL → ChangeEvent stream
+- [ ] `tests/integration/test_saga.rs` — happy path + compensation path
+- [ ] `tests/integration/test_eos.rs` — exactly-once with simulated crash
+- [ ] `tests/integration/test_cache.rs` — cold start + write-through + eviction
+- [ ] `tests/integration/test_webhook.rs` — delivery with `wiremock`, retry, DLQ
+- [ ] `tests/integration/test_feature_flag.rs` — PG → Redis hot reload
+- [ ] `tests/integration/test_admin_api.rs` — all HTTP endpoints
+- [ ] `tests/load/` — k6 / wrk scripts for throughput baselines
+- [ ] All integration tests pass: `cargo nextest run --workspace --features integration`
+- [ ] Commit and open PR → `main`
+
+---
+
+## Phase 8 — Final integration gate
+
+- [ ] `cargo check --workspace` clean
+- [ ] `cargo clippy --workspace -- -D warnings` clean
+- [ ] `cargo fmt --check` clean
+- [ ] `cargo nextest run --workspace` — all unit tests pass
+- [ ] `cargo nextest run --workspace --features integration` — all integration tests pass
+- [ ] `cargo llvm-cov --workspace --fail-under-lines 80` — coverage ≥ 80% overall
+- [ ] `cargo llvm-cov --package triad-runner --fail-under-lines 90` — runner ≥ 90%
+- [ ] Merge all feature branches to `main`
+- [ ] Tag `v0.1.0`
+
+---
+
+## Merge order (dependency-respecting)
+
+```
+Phase 0: triad-proto ──┐
+Phase 0: triad-core  ──┤ (parallel)
+                       ▼
+Phase 1: triad-runner-backends
+Phase 6: migrations  ──┤ (can merge with Phase 1)
+                       ▼
+Phase 2: patterns-cdc-outbox ──┐
+Phase 2: patterns-saga-eos   ──┤ (parallel within phase)
+Phase 5: triad-sdk           ──┘
+                               ▼
+Phase 3: triad-runner-engine (+ admin)
+Phase 4: triad-cli           ──┐ (parallel with engine)
+                               ▼
+Phase 7: tests
+                               ▼
+Phase 8: final gate → v0.1.0
+```
+
+---
+
+## Ralph loop command templates
+
+### Saga + EOS (Phase 2)
+```bash
+cd /home/jreuben1/Code/triad-worktrees/triad-runner-patterns-saga-eos
+/ralph-loop "Implement patterns/saga.rs and patterns/eos.rs per §4.5 of triad-physical-design.md.
+TDD: failing tests first, then implementation, then cargo test -p triad-runner.
+Invariants: EOS txn wraps send+offsets atomically. Saga checkpoint uses optimistic locking (version column).
+Coverage target: 90%+. Output <promise>DONE</promise> when all tests pass." \
+--max-iterations 40 --completion-promise "DONE"
+```
+
+### Engine + Runner + Shutdown (Phase 3)
+```bash
+cd /home/jreuben1/Code/triad-worktrees/triad-runner-engine
+/ralph-loop "Implement engine.rs, runner.rs, checkpoint.rs, shutdown.rs, leader/ per §4.6-§4.9.
+TDD: failing tests first. CancellationToken flows Runner→Engine→module.
+Runner FSM: Idle→Starting→Running→Draining→Stopped. SIGTERM triggers drain with timeout.
+Output <promise>DONE</promise> when cargo test -p triad-runner passes." \
+--max-iterations 35 --completion-promise "DONE"
+```
+
+---
+
+## Progress tracking
+
+Update this file as work completes. Each checkbox maps to a commit on the feature branch.
+
+To see current status:
+```bash
+git log --oneline --all --graph   # all branches at a glance
+git worktree list                  # active worktrees
+```
+
+To check aggregate test status across all branches:
+```bash
+for wt in /home/jreuben1/Code/triad-worktrees/*/; do
+  echo "=== $wt ===" && cargo test --manifest-path "$wt/Cargo.toml" -q 2>&1 | tail -3
+done
+```

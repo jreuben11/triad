@@ -20,13 +20,18 @@ Dependency direction: `cli → runner → core ← sdk`, `runner → proto`.
 ## Common commands
 
 ```bash
-cargo check --workspace                        # fast compile check
-cargo test --workspace                         # unit tests only
-cargo test --workspace --features integration  # + testcontainers integration tests
-cargo clippy --workspace -- -D warnings        # lints (treat all warnings as errors)
-cargo fmt --check                              # formatting gate
-cargo llvm-cov --workspace --html             # coverage report (requires cargo-llvm-cov)
+cargo check --workspace                                          # fast compile check
+cargo nextest run --workspace                                    # parallelised unit tests (preferred over cargo test)
+cargo nextest run --workspace --features integration             # + testcontainers integration tests
+cargo nextest run --workspace --test-threads 8                   # explicit parallelism cap
+cargo clippy --workspace -- -D warnings                          # lints — all warnings are errors
+cargo fmt --check                                                # formatting gate
+cargo llvm-cov nextest --workspace --html                        # coverage report (HTML)
+cargo llvm-cov nextest --workspace --fail-under-lines 80         # coverage gate (CI)
+cargo llvm-cov nextest -p triad-runner --fail-under-lines 90     # runner coverage gate
 ```
+
+Install `cargo-nextest` if not present: `cargo install cargo-nextest cargo-llvm-cov`
 
 ## Rust best practices for this project
 
@@ -69,6 +74,33 @@ cargo llvm-cov --workspace --html             # coverage report (requires cargo-
 ### Kubernetes feature flag
 - K8s leader election code (`K8sLeaseLeader`, kube client) is gated behind `#[cfg(feature = "kubernetes")]` in `triad-runner`.
 - The `NoopLeader` (always-leader) is the default and must always compile without the feature.
+
+## Pre-commit gate — ALL must pass before any commit
+
+```bash
+cargo fmt --check                                            # 1. formatting
+cargo clippy --workspace -- -D warnings                      # 2. lints
+cargo check --workspace                                      # 3. compile
+cargo nextest run --workspace                                # 4. all unit tests
+cargo llvm-cov nextest --workspace --fail-under-lines 80    # 5. coverage threshold
+```
+
+Never commit with failing tests. Never commit with clippy warnings. If tests fail, fix them before committing — do not skip or `#[ignore]` tests without adding a tracking comment with the reason.
+
+## Git workflow in this repo
+
+This repo uses git worktrees for parallel agent development. Each feature has its own worktree:
+```
+/home/jreuben1/Code/triad-worktrees/<feature>/   ← each agent works here
+/home/jreuben1/Code/triad/                        ← main branch, integration point
+```
+
+When working in a worktree, set `CARGO_TARGET_DIR` to avoid conflicts with other worktrees:
+```bash
+export CARGO_TARGET_DIR=/tmp/triad-target-$(git branch --show-current)
+```
+
+Commit within the worktree branch. Do not push directly to `main`.
 
 ## Testing requirements
 
@@ -126,9 +158,25 @@ GET  /metrics          Prometheus text format
 GET  /patterns         list all pattern modules + state
 POST /patterns/{name}/pause
 POST /patterns/{name}/resume
+GET  /registry         pattern module registry
 GET  /checkpoints      list checkpoint offsets
 POST /pipelines/{name}/reload
 GET  /dlq/{topic}      list DLQ messages
 POST /dlq/{topic}/replay
 DELETE /dlq/{topic}    purge DLQ
 ```
+
+## Self-optimisation instructions
+
+**After completing each module or phase:**
+
+1. **Update `project-plan.md`**: check off completed items with `[x]`. Add any new sub-tasks discovered during implementation.
+
+2. **Update this file (`CLAUDE.md`)** when you discover:
+   - A new invariant that must be respected across modules (add it to the "Safety invariants" section)
+   - A pattern or anti-pattern that caused test failures (add a rule to the relevant section)
+   - A crate API gotcha discovered via compiler errors (add a comment in "Rust best practices")
+
+3. **Commit CLAUDE.md and project-plan.md changes** together with the implementation commit so the next agent session starts with current context.
+
+4. **Do not pad CLAUDE.md** with information derivable from the code itself. Only add things that would surprise a future agent reading fresh context.
