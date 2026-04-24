@@ -68,11 +68,37 @@ runtime so changing the project config requires only one edit.
 
 ## Zellij Automation
 
+### Atomic tab launch — use `new-tab -- command`, never `write-chars`
+**Rule:** `zellij action new-tab --name <name> -- <command>` creates the tab with the command
+already running. This is atomic — no focus timing, no race condition, no `write-chars` needed.
+**Fix:**
+```bash
+zellij action new-tab --name "phase3-cli" -- /tmp/run-phase3-cli.sh
+```
+The returned value is the new tab's integer ID. Use `go-to-tab-by-id <id>` (not `go-to-tab-name`)
+for reliable navigation after creation, since rename may not have propagated yet.
+**Never use** the old four-step sequence (`new-tab` → `sleep` → `rename-tab` → `write-chars`) —
+it is a race condition and will send keystrokes to the wrong pane when focus shifts.
+
+### Agent wrapper scripts prevent markdown shell-expansion
+**Rule:** Never inline `$(cat prompt.md)` in a `write-chars` call or in the parent shell.
+Markdown backtick-quoted text is treated as shell subcommands.
+**Fix:** Write a `/tmp/run-<name>.sh` wrapper:
+```bash
+#!/bin/bash
+cd /home/.../worktree
+export CARGO_TARGET_DIR=/tmp/triad-target-<name>
+exec claude --dangerously-skip-permissions "$(cat /path/to/prompt.md)"
+```
+Then launch atomically: `zellij action new-tab --name "<name>" -- /tmp/run-<name>.sh`
+
 ### Tab lifecycle
 - Tabs do not auto-close when Claude finishes — this is expected. Review output, then close manually
   or let `/project-status` close it after a successful merge.
-- To close a tab from another tab: `zellij action go-to-tab-name <name>` → `zellij action close-tab`
-  → `zellij action go-to-tab-name status` to return.
+- To close a specific tab by ID: `zellij action go-to-tab-by-id <id>` then `zellij action close-tab`
+  then `zellij action go-to-tab-by-id <status-id>` to return.
+- Use `zellij action list-tabs` to get current tab IDs — always prefer ID-based navigation over
+  name-based navigation (`go-to-tab-name` is unreliable when tabs share names or rename is pending).
 - KDL layout files only work for *new* sessions. For in-session tab management use `zellij action`.
 
 ### Tab commands must use concrete paths

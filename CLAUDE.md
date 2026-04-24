@@ -87,6 +87,16 @@ cargo llvm-cov nextest --workspace --fail-under-lines 80    # 5. coverage thresh
 
 Never commit with failing tests. Never commit with clippy warnings. If tests fail, fix them before committing — do not skip or `#[ignore]` tests without adding a tracking comment with the reason.
 
+## Post-merge / post-rebase gate — MANDATORY
+
+After every `git merge`, `git rebase`, or conflict resolution, run the full unit test suite before creating any commit or pushing:
+
+```bash
+cargo nextest run --workspace
+```
+
+This is non-negotiable. A rebase that compiles but breaks tests must be fixed before the branch is pushed or merged. Never assume a clean rebase is a correct rebase.
+
 ## Git workflow in this repo
 
 This repo uses git worktrees for parallel agent development. Each feature has its own worktree:
