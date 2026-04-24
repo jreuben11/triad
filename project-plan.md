@@ -124,13 +124,13 @@ Launch: `/zellij-launch phase 2` → switch to `phase2-saga-eos` tab → type `/
 Launch: `/zellij-launch phase 3` → switch to `phase3-engine` tab → type `/loop`.
 ```
 
-- [ ] `engine.rs` — `PatternEngine`: `JoinSet` supervisor, restart on panic, backpressure controller (§4.6)
-- [ ] `runner.rs` — `Runner` FSM: `Idle → Starting → Running → Draining → Stopped` (§4.7)
-- [ ] `shutdown.rs` — SIGTERM handler, drain with timeout, ordered teardown (§4.6)
-- [ ] `checkpoint.rs` — `PgCheckpointStore`: CAS UPDATE with `version` column (§3.2)
-- [ ] `leader/mod.rs` — `NoopLeader` (always-wins) + `K8sLeaseLeader` behind `#[cfg(feature="kubernetes")]` (§4.9)
-- [ ] Unit tests for FSM transitions, shutdown sequencing
-- [ ] Commit and open PR → `main`
+- [x] `engine.rs` — `PatternEngine`: `JoinSet` supervisor, restart on panic, backpressure controller (§4.6)
+- [x] `runner.rs` — `Runner` FSM: `Idle → Starting → Running → Draining → Stopped` (§4.7)
+- [x] `shutdown.rs` — SIGTERM handler, drain with timeout, ordered teardown (§4.6)
+- [x] `checkpoint.rs` — `PgCheckpointStore`: CAS UPDATE with `version` column (§3.2)
+- [x] `leader/mod.rs` — `NoopLeader` (always-wins) + `K8sLeaseLeader` behind `#[cfg(feature="kubernetes")]` (§4.9)
+- [x] Unit tests for FSM transitions, shutdown sequencing (270 tests pass)
+- [x] Commit and open PR → `main`
 
 ---
 
@@ -138,12 +138,12 @@ Launch: `/zellij-launch phase 3` → switch to `phase3-engine` tab → type `/lo
 
 ### Admin server — part of `feat/triad-runner-engine`
 
-- [ ] `admin/http.rs` — Axum router: all endpoints from §4.8 incl. `/registry`
-- [ ] `admin/handlers.rs` — handler implementations
-- [ ] Health handler returns correct JSON schema per §21.3
-- [ ] `/metrics` handler emits Prometheus text format
-- [ ] Unit tests: each route tested with `axum::test`
-- [ ] Commit (part of engine PR)
+- [x] `admin/http.rs` — Axum router: all endpoints from §4.8 incl. `/registry`
+- [x] `admin/handlers.rs` — handler implementations
+- [x] Health handler returns correct JSON schema per §21.3
+- [x] `/metrics` handler emits Prometheus text format
+- [x] Unit tests: each route tested with `axum::test`
+- [x] Commit (part of engine PR)
 
 ### `triad-cli` — `feat/triad-cli`
 
