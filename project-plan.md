@@ -108,12 +108,12 @@ Split into two worktrees to allow parallel work on independent patterns.
 
 Launch: `/zellij-launch phase 2` → switch to `phase2-saga-eos` tab → type `/loop`.
 
-- [ ] `patterns/saga.rs` — durable saga orchestrator with compensation, `JoinSet` steps, PG checkpoint (§4.5)
-- [ ] `patterns/eos.rs` — exactly-once coordinator: Kafka txn + Redis NX + PG outbox (§4.5)
-- [ ] Unit tests: 90%+ coverage
+- [x] `patterns/saga.rs` — durable saga orchestrator with compensation, `JoinSet` steps, PG checkpoint (§4.5)
+- [x] `patterns/eos.rs` — exactly-once coordinator: Kafka txn + Redis NX + PG outbox (§4.5)
+- [x] Unit tests: 90%+ coverage (saga.rs 92.99%, eos.rs 99.13%)
 - [ ] Integration test: end-to-end saga with compensation scenario
 - [ ] Integration test: EOS with simulated producer crash mid-transaction
-- [ ] Commit and open PR → `main`
+- [x] Commit and open PR → `main`
 
 ---
 
