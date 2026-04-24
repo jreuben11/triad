@@ -164,14 +164,14 @@ Launch: `/zellij-launch phase 3` → switch to `phase3-engine` tab → type `/lo
 
 **Strategy: parallel agent**
 
-- [ ] `instance.rs` — `TriadInstance::start()` / `shutdown()`, embeds `Runner` in-process (§5.1)
-- [ ] `middleware.rs` — `IdempotencyLayer` + `RateLimitLayer` as `tower::Layer` impls (§5.2)
-- [ ] `patterns.rs` — SDK facades: `OutboxPublisher`, `FlagEvaluator`, `SagaBuilder` (§5.3)
-- [ ] `aggregate.rs` — event sourcing aggregate helper
-- [ ] `idempotency.rs` — idempotency key helpers
-- [ ] Unit tests with mocked `Runner`
-- [ ] Compile check in Mode 1 configuration (no `kubernetes` feature)
-- [ ] Commit and open PR → `main`
+- [x] `instance.rs` — `TriadInstance::start()` / `shutdown()`, embeds `Runner` in-process (§5.1)
+- [x] `middleware.rs` — `IdempotencyLayer` + `RateLimitLayer` as `tower::Layer` impls (§5.2)
+- [x] `patterns.rs` — SDK facades: `OutboxPublisher`, `FlagEvaluator`, `SagaBuilder` (§5.3)
+- [x] `aggregate.rs` — event sourcing aggregate helper
+- [x] `idempotency.rs` — idempotency key helpers
+- [x] Unit tests (43 passing, no mocked Runner — see best-practices for rationale)
+- [x] Compile check in Mode 1 configuration (no `kubernetes` feature)
+- [x] Commit and open PR → `main`
 
 ---
 
