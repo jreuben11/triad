@@ -12,8 +12,13 @@ rust-version.workspace = true
 # Async
 tokio        = { workspace = true }
 tokio-stream = { workspace = true }
+tokio-util   = { version = "0.7" }
 futures      = { workspace = true }
 async-trait  = { workspace = true }
+
+# Backend errors (type aliases used in error hierarchy)
+sqlx         = { workspace = true }
+redis        = { workspace = true }
 
 # Serialization
 serde        = { workspace = true }
