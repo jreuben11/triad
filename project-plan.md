@@ -175,35 +175,35 @@ Launch: `/zellij-launch phase 3` → switch to `phase3-engine` tab → type `/lo
 
 ---
 
-## Phase 6 — Database Migrations (can run in parallel with Phase 1)
+## Phase 6 — Database Migrations (absorbed into Phase 7 — `feat/tests` agent owns these)
 
-- [ ] `0001_triad_outbox.sql` — outbox table + relay_status index
-- [ ] `0002_triad_inbox.sql` — inbox dedup table
-- [ ] `0003_triad_checkpoints.sql` — checkpoints with `version BIGINT` + optimistic lock
-- [ ] `0004_triad_saga.sql` — `triad_saga_checkpoints` + `triad_saga_steps`
-- [ ] `0005_webhook.sql` — `webhook_subscriptions` + `webhook_deliveries`
-- [ ] `0006_feature_flags.sql` — `feature_flags` + `flag_audit`
-- [ ] `0007_idempotency_keys.sql` — idempotency key store
-- [ ] `sqlx migrate run` succeeds against a fresh Postgres (testcontainers)
-- [ ] Commit (part of backends PR or separate)
+- [ ] `crates/triad-runner/migrations/0001_outbox.sql` — `triad.triad_outbox` + pending index
+- [ ] `crates/triad-runner/migrations/0002_inbox.sql` — `triad.triad_inbox`
+- [ ] `crates/triad-runner/migrations/0003_checkpoints.sql` — `triad.triad_checkpoints` + version column
+- [ ] `crates/triad-runner/migrations/0004_saga.sql` — `triad_saga_checkpoints` + `triad_saga_steps`
+- [ ] `crates/triad-runner/migrations/0005_webhooks.sql` — `webhook_subscriptions` + `webhook_deliveries`
+- [ ] `crates/triad-runner/migrations/0006_feature_flags.sql` — `feature_flags` + `flag_audit`
+- [ ] `crates/triad-runner/migrations/0007_idempotency.sql` — `idempotency_keys`
+- [ ] `sqlx::migrate!` runs cleanly against testcontainers PG in `TestStack::start()`
+- [ ] Commit (part of Phase 7 PR)
 
 ---
 
 ## Phase 7 — Integration + Load Tests — `feat/tests`
 
-**Strategy: parallel agent after Phase 6 complete**
+**Strategy: parallel agent. Owns Phase 6 migrations + integration tests.**
 
-- [ ] `tests/integration/helpers.rs` — `TestStack`: boots PG + Kafka + Redis via testcontainers once per binary
-- [ ] `tests/integration/test_outbox.rs` — outbox → Kafka → inbox round-trip
-- [ ] `tests/integration/test_cdc.rs` — PG WAL → ChangeEvent stream
-- [ ] `tests/integration/test_saga.rs` — happy path + compensation path
-- [ ] `tests/integration/test_eos.rs` — exactly-once with simulated crash
-- [ ] `tests/integration/test_cache.rs` — cold start + write-through + eviction
-- [ ] `tests/integration/test_webhook.rs` — delivery with `wiremock`, retry, DLQ
-- [ ] `tests/integration/test_feature_flag.rs` — PG → Redis hot reload
-- [ ] `tests/integration/test_admin_api.rs` — all HTTP endpoints
-- [ ] `tests/load/` — k6 / wrk scripts for throughput baselines
-- [ ] All integration tests pass: `cargo nextest run --workspace --features integration`
+- [ ] `crates/triad-runner/tests/common/containers.rs` — `TestStack`: boots PG + Kafka + Redis, runs migrations
+- [ ] `crates/triad-runner/tests/test_outbox.rs` — outbox → Kafka → inbox round-trip (EOS)
+- [ ] `crates/triad-runner/tests/test_cdc.rs` — PG WAL → ChangeEvent stream (1s deadline)
+- [ ] `crates/triad-runner/tests/test_saga.rs` — happy path + compensation path (5s deadline)
+- [ ] `crates/triad-runner/tests/test_eos.rs` — exactly-once with duplicate message (3s deadline)
+- [ ] `crates/triad-runner/tests/test_cache.rs` — cold start + write-through + eviction (1s deadline)
+- [ ] `crates/triad-runner/tests/test_webhook.rs` — delivery with `wiremock`, retry, DLQ (30s deadline)
+- [ ] `crates/triad-runner/tests/test_feature_flag.rs` — PG → Redis hot reload (5s deadline)
+- [ ] `crates/triad-runner/tests/test_admin_api.rs` — all HTTP endpoints
+- [ ] `tests/load/` — k6 script stubs (`outbox_throughput.js`, `saga_throughput.js`, `cache_read.js`)
+- [ ] All integration tests pass: `cargo nextest run -p triad-runner --features integration`
 - [ ] Commit and open PR → `main`
 
 ---
