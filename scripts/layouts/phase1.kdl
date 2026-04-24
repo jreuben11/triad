@@ -1,0 +1,14 @@
+// Phase 1: backends (depends on Phase 0 merged to main)
+// Launch: zellij --session triad-phase1 --layout scripts/layouts/phase1.kdl
+layout {
+    tab name="backends" {
+        pane name="triad-runner-backends" command="bash" {
+            args "-c" "/home/jreuben1/Code/triad/scripts/agents/run-triad-runner-backends.sh"
+        }
+    }
+    tab name="status" {
+        pane name="status" command="bash" {
+            args "-c" "watch -n 30 /home/jreuben1/Code/triad/scripts/status.sh"
+        }
+    }
+}

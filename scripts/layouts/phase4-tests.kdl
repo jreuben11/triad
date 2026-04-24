@@ -1,0 +1,14 @@
+// Phase 4: integration tests (depends on all feature branches merged)
+// Launch: zellij --session triad-phase4 --layout scripts/layouts/phase4-tests.kdl
+layout {
+    tab name="tests" {
+        pane name="integration-tests" command="bash" {
+            args "-c" "/home/jreuben1/Code/triad/scripts/agents/run-tests.sh"
+        }
+    }
+    tab name="status" {
+        pane name="status" command="bash" {
+            args "-c" "watch -n 30 /home/jreuben1/Code/triad/scripts/status.sh"
+        }
+    }
+}

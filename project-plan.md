@@ -14,8 +14,8 @@
 | `.../triad-worktrees/triad-core` | `feat/triad-core` | parallel agent |
 | `.../triad-worktrees/triad-runner-backends` | `feat/triad-runner-backends` | parallel agent |
 | `.../triad-worktrees/triad-runner-patterns-cdc-outbox` | `feat/triad-runner-patterns-cdc-outbox` | parallel agent |
-| `.../triad-worktrees/triad-runner-patterns-saga-eos` | `feat/triad-runner-patterns-saga-eos` | **Ralph loop** |
-| `.../triad-worktrees/triad-runner-engine` | `feat/triad-runner-engine` | **Ralph loop** |
+| `.../triad-worktrees/triad-runner-patterns-saga-eos` | `feat/triad-runner-patterns-saga-eos` | **`/loop`** (self-paced TDD) |
+| `.../triad-worktrees/triad-runner-engine` | `feat/triad-runner-engine` | **`/loop`** (self-paced TDD) |
 | `.../triad-worktrees/triad-sdk` | `feat/triad-sdk` | parallel agent |
 | `.../triad-worktrees/triad-cli` | `feat/triad-cli` | parallel agent |
 | `.../triad-worktrees/tests` | `feat/tests` | parallel agent |
@@ -83,7 +83,7 @@ Split into two worktrees to allow parallel work on independent patterns.
 
 ### Saga Orchestrator + EOS Coordinator — `feat/triad-runner-patterns-saga-eos`
 
-**Strategy: Ralph loop** — these require iterative TDD cycles due to complex state machines and transaction semantics.
+**Strategy: `/loop`** — these require iterative TDD cycles due to complex state machines and transaction semantics. Launch the agent script then run `/loop` to self-pace.
 
 ```
 /ralph-loop "Implement patterns/saga.rs and patterns/eos.rs in
@@ -110,7 +110,7 @@ When cargo test passes with >90% coverage output <promise>DONE</promise>" \
 
 ## Phase 3 — Engine + Runner + Shutdown (depends on Phase 2)
 
-**Strategy: Ralph loop** — the supervisor loop and FSM require careful concurrency and cancellation logic.
+**Strategy: `/loop`** — the supervisor loop and FSM require careful concurrency and cancellation logic. Launch the agent script then run `/loop` to self-pace.
 
 ```
 /ralph-loop "Implement engine.rs, runner.rs, and shutdown.rs in
@@ -247,26 +247,33 @@ Phase 8: final gate → v0.1.0
 
 ---
 
-## Ralph loop command templates
+## /loop command templates (native Claude Code skill)
+
+`/loop` runs the current session prompt on self-paced iterations until the task is complete.
+Use it after launching the agent script for iterative TDD modules.
 
 ### Saga + EOS (Phase 2)
 ```bash
-cd /home/jreuben1/Code/triad-worktrees/triad-runner-patterns-saga-eos
-/ralph-loop "Implement patterns/saga.rs and patterns/eos.rs per §4.5 of triad-physical-design.md.
-TDD: failing tests first, then implementation, then cargo test -p triad-runner.
-Invariants: EOS txn wraps send+offsets atomically. Saga checkpoint uses optimistic locking (version column).
-Coverage target: 90%+. Output <promise>DONE</promise> when all tests pass." \
---max-iterations 40 --completion-promise "DONE"
+# 1. Launch the agent session:
+./scripts/agents/run-patterns-saga-eos.sh
+
+# 2. Once Claude Code is open in that worktree, start the loop:
+/loop
 ```
+Claude will self-pace: write tests → implement → cargo test → fix failures → repeat until 90%+ coverage.
 
 ### Engine + Runner + Shutdown (Phase 3)
 ```bash
-cd /home/jreuben1/Code/triad-worktrees/triad-runner-engine
-/ralph-loop "Implement engine.rs, runner.rs, checkpoint.rs, shutdown.rs, leader/ per §4.6-§4.9.
-TDD: failing tests first. CancellationToken flows Runner→Engine→module.
-Runner FSM: Idle→Starting→Running→Draining→Stopped. SIGTERM triggers drain with timeout.
-Output <promise>DONE</promise> when cargo test -p triad-runner passes." \
---max-iterations 35 --completion-promise "DONE"
+# 1. Launch the agent session:
+./scripts/agents/run-runner-engine.sh
+
+# 2. Once Claude Code is open in that worktree, start the loop:
+/loop
+```
+
+### Stopping a loop early
+```
+/loop stop
 ```
 
 ---
