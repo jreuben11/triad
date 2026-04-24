@@ -71,13 +71,13 @@ These two crates have no inter-crate dependencies and can be implemented simulta
 
 ### `triad-runner` backends — `feat/triad-runner-backends`
 
-- [ ] `backends/postgres.rs` — `PgBackend`: sqlx pool init, migration runner, replication connection via `tokio-postgres` (§4.1)
-- [ ] `backends/kafka.rs` — `KafkaBackend`: `ProducerFactory` (EOS transactional), `ConsumerFactory`, topic admin (§4.2)
-- [ ] `backends/redis.rs` — `RedisPool` enum: Standalone / Cluster / Sentinel dispatch via `deadpool-redis` (§4.3)
-- [ ] `backends/circuit_breaker.rs` — `CircuitBreaker<S>` with `watch::Sender<CbState>`, state machine (§4.4)
-- [ ] Unit tests for each backend using `mockall` traits; no real I/O in unit tests
-- [ ] Integration tests in `tests/` using `testcontainers-modules` for PG + Kafka + Redis
-- [ ] `cargo clippy -p triad-runner -- -D warnings` clean on backends only
+- [x] `backends/postgres.rs` — `PgBackend`: sqlx pool init, migration runner, replication connection via `tokio-postgres` (§4.1)
+- [x] `backends/kafka.rs` — `KafkaBackend`: `ProducerFactory` (EOS transactional), `ConsumerFactory`, topic admin (§4.2)
+- [x] `backends/redis.rs` — `RedisPool` enum: Standalone / Cluster / Sentinel dispatch; deadpool-redis 0.16 has no sentinel pool so Sentinel uses `redis::sentinel::SentinelClient` directly (§4.3)
+- [x] `backends/circuit_breaker.rs` — `CircuitBreaker<S>` with `watch::Sender<CbState>`, full state machine (§4.4)
+- [x] Unit tests for each backend using mockall traits; no real I/O in unit tests (36 tests, all pass)
+- [x] Integration tests in `tests/integration/` using `testcontainers-modules` for PG + Redis; gated behind `integration` feature
+- [x] `cargo clippy -p triad-runner -- -D warnings` clean
 - [ ] Commit and open PR → `main`
 
 ---

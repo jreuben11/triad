@@ -137,3 +137,53 @@ After completing a phase, the agent must:
 2. Add any new invariants discovered to `claude-best-practices-learned.md`
 3. Update `CLAUDE.md` if a new safety invariant or anti-pattern was found
 4. Commit all three files together before opening the PR
+
+---
+
+## Rust Crate API Pitfalls (triad-specific)
+
+### tokio-postgres 0.7: no `replication_mode()` on `Config`
+**Rule:** `tokio_postgres::Config` in version 0.7.x does NOT have a `replication_mode()` setter
+or `config::ReplicationMode` type — the compiler suggests `application_name` as the closest
+method. The `replication=database` startup parameter must be embedded in the DSN string itself
+or added as a key-value pair before parsing.
+**Fix:** Parse the base DSN, then try re-parsing a modified DSN with `replication=database`
+appended; fall back to the base config if tokio-postgres doesn't recognise the parameter.
+
+### deadpool-redis 0.16: no `sentinel` feature
+**Rule:** `deadpool-redis = { version = "0.16", features = ["sentinel"] }` fails with
+"package does not have that feature". Version 0.16.0 only ships `cluster`, `rt_tokio_1`,
+`rt_async-std_1`, and `serde` features.
+**Fix:** For Sentinel mode, use `redis::sentinel::SentinelClient::build()` directly (from the
+`redis` crate with `sentinel` feature). The enum variant stores a `SentinelClient` instead of
+a `deadpool_redis::Pool`; callers obtain connections via `get_async_master_connection()`.
+
+### deadpool-redis cluster::Config: `connections` field
+**Rule:** `deadpool_redis::cluster::Config` has three fields: `urls`, `connections`, `pool`.
+Struct literals with only `urls` and `pool` fail with "missing field `connections`".
+**Fix:** Include `connections: None` in the struct literal.
+
+### redis 0.26: `SentinelServerType`, not `SentinelNodeType`
+**Rule:** In redis 0.26, the sentinel node type enum is `redis::sentinel::SentinelServerType`,
+not `SentinelNodeType`. The compiler suggests the correct name.
+
+### tokio-util 0.7: no `sync` feature gate needed
+**Rule:** `tokio-util = { version = "0.7", features = ["sync"] }` fails — `sync` is not a
+recognised feature. The `sync` module (`CancellationToken`) is included by default.
+**Fix:** Omit `features` entirely: `tokio-util = { version = "0.7" }`.
+
+### sqlx::migrate!() requires migrations/ directory at compile time
+**Rule:** `sqlx::migrate!("./migrations")` is a compile-time macro. If the directory does not
+exist, the build fails. An empty directory (with a `.gitkeep`) compiles and runs as a no-op.
+**Fix:** Create `crates/<crate>/migrations/.gitkeep` before using the macro.
+
+### Clippy: prefer `io::Error::other()` over `io::Error::new(ErrorKind::Other, _)`
+**Rule:** `clippy` (with `-D warnings`) rejects `std::io::Error::new(std::io::ErrorKind::Other, e)`
+because `io::Error::other(e)` is more idiomatic in Rust 1.74+.
+**Fix:** Use `std::io::Error::other(e)` for generic I/O error wrapping.
+
+### Worktree rebase before feature work: pull main first
+**Rule:** Feature worktrees are created from the scaffold commit and do NOT automatically
+receive commits merged to main (e.g., triad-core). Always rebase the worktree onto main
+before starting implementation: `git -C <worktree> rebase main`.
+**Symptom:** triad-core source files appear empty (0 bytes) in the worktree.

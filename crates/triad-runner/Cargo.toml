@@ -15,6 +15,7 @@ triad-proto = { path = "../triad-proto" }
 # Async
 tokio        = { workspace = true }
 tokio-stream = { workspace = true }
+tokio-util   = { workspace = true }
 futures      = { workspace = true }
 async-trait  = { workspace = true }
 
@@ -73,8 +74,14 @@ kube        = { workspace = true, optional = true }
 k8s-openapi = { workspace = true, optional = true }
 
 [features]
-default    = []
-kubernetes = ["kube", "k8s-openapi"]   # enables K8s Lease leader election
+default     = []
+kubernetes  = ["kube", "k8s-openapi"]   # enables K8s Lease leader election
+integration = []                         # enables testcontainers integration tests
+
+[[test]]
+name              = "integration"
+path              = "tests/integration/main.rs"
+required-features = ["integration"]
 
 [dev-dependencies]
 mockall                = { workspace = true }

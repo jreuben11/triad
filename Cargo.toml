@@ -51,6 +51,7 @@ tokio-postgres   = { version = "0.7", features = ["with-chrono-0_4", "with-uuid-
 # ── Redis ──────────────────────────────────────────────────────────────────────
 redis            = { version = "0.26", features = ["tokio-comp", "connection-manager", "cluster-async", "sentinel"] }
 deadpool-redis   = { version = "0.16", features = ["cluster"] }
+tokio-util       = { version = "0.7" }
 
 # ── Serialization ──────────────────────────────────────────────────────────────
 serde            = { version = "1", features = ["derive"] }
