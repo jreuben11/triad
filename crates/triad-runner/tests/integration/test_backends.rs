@@ -62,7 +62,7 @@ async fn test_pg_backend_connects_and_runs_migrations() {
         .expect("PgBackend::new failed");
 
     // Verify pool is actually connected
-    let row: (i64,) = sqlx::query_as("SELECT 1")
+    let row: (i64,) = sqlx::query_as("SELECT 1::bigint")
         .fetch_one(&backend.pool)
         .await
         .expect("simple query failed");
