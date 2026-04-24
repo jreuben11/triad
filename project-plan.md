@@ -39,7 +39,7 @@ Worktrees base: `/home/jreuben1/Code/triad-worktrees/` — prompts relative to r
 | 3 | phase3-cli | triad-cli | /tmp/triad-target-cli | scripts/prompts/triad-cli.md | no |
 | 4 | phase4-tests | tests | /tmp/triad-target-tests | scripts/prompts/tests.md | no |
 
-A `status` tab (`watch -n 30 scripts/status.sh`) is always appended automatically.
+A `status` tab (interactive `claude` session) is always appended — run `/project-status` in it to check progress.
 
 ---
 
@@ -285,9 +285,7 @@ git log --oneline --all --graph   # all branches at a glance
 git worktree list                  # active worktrees
 ```
 
-To check aggregate test status across all branches:
-```bash
-for wt in /home/jreuben1/Code/triad-worktrees/*/; do
-  echo "=== $wt ===" && cargo test --manifest-path "$wt/Cargo.toml" -q 2>&1 | tail -3
-done
+To check aggregate status (git, checklist, cargo check, tests per worktree):
+```
+/project-status
 ```

@@ -190,6 +190,9 @@ The skill reads the **Agent Launch Configuration** table in `project-plan.md` â€
 
 After `/zellij-launch`, check the skill output for "Run /loop in: ..." and switch to those tabs to start the loop.
 
+### Checking progress
+Run `/project-status` in any Claude Code tab (or the dedicated `status` tab opened by `/zellij-launch`) to see: git branches, worktree list, plan checklist, cargo check result, and pass/fail per worktree.
+
 ### Agent prompts
 Per-agent task descriptions live in `scripts/prompts/<name>.md`. Each prompt specifies the worktree, done criteria, and key invariants. Read these before modifying agent behaviour.
 
