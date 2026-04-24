@@ -140,6 +140,26 @@ After completing a phase, the agent must:
 
 ---
 
+## mockall + async_trait attribute ordering
+
+### Put #[automock] BEFORE #[async_trait] — always
+**Rule:** With `#[async_trait]` before `#[cfg_attr(test, mockall::automock)]`, the proc-macro
+expansion desugars async methods into `fn() -> Pin<Box<dyn Future<...>>>` BEFORE mockall sees them.
+mockall then generates expectations where `returning` must return the pinned-boxed-future type,
+making tests verbose and error-prone.
+**Fix:** Always put `#[cfg_attr(test, mockall::automock)]` BEFORE `#[async_trait]`:
+```rust
+#[cfg_attr(test, mockall::automock)]
+#[async_trait]
+pub trait Foo: Send + Sync {
+    async fn bar(&self, x: &str) -> Result<bool, PatternError>;
+}
+```
+With this order, mockall sees the async method and generates expectations that accept a plain
+`returning(|arg| Ok(value))` closure — no `Box::pin(async { ... })` needed.
+
+---
+
 ## Rust Crate API Pitfalls (triad-specific)
 
 ### tokio-postgres 0.7: no `replication_mode()` on `Config`
@@ -187,6 +207,22 @@ because `io::Error::other(e)` is more idiomatic in Rust 1.74+.
 receive commits merged to main (e.g., triad-core). Always rebase the worktree onto main
 before starting implementation: `git -C <worktree> rebase main`.
 **Symptom:** triad-core source files appear empty (0 bytes) in the worktree.
+
+### zellij write-chars: always go-to-tab-name + sleep before write-chars
+**Rule:** After `zellij action new-tab` and `rename-tab`, the pane focus may not have moved to
+the new tab by the time `write-chars` fires. All subsequent commands land in the previously
+active tab instead of the new one.
+**Fix:** Always run `zellij action go-to-tab-name "<name>"` (with `sleep 0.4`) immediately before
+every `write-chars` call — even when you just opened and renamed the tab.
+
+### zellij write-chars: never interpolate multi-line strings — use wrapper scripts
+**Rule:** Passing `$(cat prompt.md)` inside a `write-chars` argument causes the parent shell to
+expand the markdown (which contains backticks, quotes, newlines) before zellij sees it. The
+result is garbled text echoed into the tab rather than a working command.
+**Fix:** Write a small `/tmp/run-<tab>.sh` wrapper script that does the `cd`, `export`, and
+`exec claude --dangerously-skip-permissions "$(cat prompt.md)"`. Then `write-chars` only sends
+the short string `bash /tmp/run-<tab>.sh` — the `$(cat ...)` is evaluated by the tab's shell
+at runtime, not the parent shell.
 
 ---
 
