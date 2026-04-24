@@ -128,18 +128,54 @@ Every pipeline emits:
 
 ## Development
 
-Prerequisites: Rust 1.85+, Docker (for integration tests).
+Prerequisites: Rust 1.85+, Docker (for integration tests), [Claude Code](https://claude.ai/code).
 
 ```bash
 # check the workspace
 cargo check --workspace
 
-# run unit tests
-cargo test --workspace
+# run unit tests (parallelised)
+cargo nextest run --workspace
 
 # run integration tests (starts Kafka, PG, Redis via testcontainers)
-cargo test --workspace --features integration
+cargo nextest run --workspace --features integration
+
+# coverage gate
+cargo llvm-cov nextest --workspace --fail-under-lines 80
 ```
+
+### Agent-driven development
+
+This project uses Claude Code agents running in parallel git worktrees. Each crate has its own worktree under `../triad-worktrees/` so agents build in isolation.
+
+The `/zellij-launch` skill (located at `~/.claude/commands/zellij-launch.md`) automates tab setup inside a running [zellij](https://zellij.dev) session. It reads the **Agent Launch Configuration** table in `project-plan.md` to know which worktrees, build targets, and agent prompts to use for each batch.
+
+#### Starting a development batch
+
+```
+# inside a zellij session, from any tab:
+/zellij-launch phase 0    # triad-proto + triad-core  (parallel agents)
+/zellij-launch phase 1    # triad-runner backends     (parallel agent)
+/zellij-launch phase 2    # cdc-outbox (parallel) + saga-eos (/loop TDD)
+/zellij-launch phase 3    # engine (/loop TDD) + sdk + cli (parallel)
+/zellij-launch phase 4    # integration tests          (parallel agent)
+```
+
+Each command opens named tabs in the current session, navigates each tab to its worktree, sets `CARGO_TARGET_DIR` to an isolated `/tmp/` path, and starts `claude --dangerously-skip-permissions` with the per-agent prompt from `scripts/prompts/`.
+
+#### Iterative TDD with /loop
+
+Two modules — `saga-eos` (Phase 2) and `engine` (Phase 3) — use `/loop` instead of a one-shot agent because they require iterative TDD cycles over complex concurrency and transaction semantics. After `/zellij-launch` opens the tab, switch to it and type:
+
+```
+/loop
+```
+
+Claude self-paces: write failing test → implement → `cargo nextest` → fix → repeat, until coverage exceeds 90%.
+
+#### Agent prompts
+
+Per-agent task descriptions live in `scripts/prompts/<name>.md`. To customise what an agent does for a phase, edit the corresponding prompt file — the Agent Launch Configuration table in `project-plan.md` maps each batch row to its prompt.
 
 ### Features
 

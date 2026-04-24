@@ -166,6 +166,33 @@ POST /dlq/{topic}/replay
 DELETE /dlq/{topic}    purge DLQ
 ```
 
+## Launching agents
+
+This project uses the `/zellij-launch` skill (must be inside a zellij session).
+
+### Starting a phase
+```
+/zellij-launch phase 0    # proto + core (parallel agents)
+/zellij-launch phase 1    # backends (parallel agent)
+/zellij-launch phase 2    # cdc-outbox (parallel) + saga-eos (/loop)
+/zellij-launch phase 3    # engine (/loop) + sdk + cli (parallel)
+/zellij-launch phase 4    # integration tests (parallel agent)
+```
+
+The skill reads the **Agent Launch Configuration** table in `project-plan.md` — that table is the single source of truth for which worktrees, targets, prompts, and `/loop` flags apply to each batch.
+
+### When to use /loop vs parallel agents
+
+| Agent strategy | When to use |
+|---|---|
+| **Parallel agent** (default) | Module is self-contained with a clear spec — agent runs once, commits, done |
+| **`/loop`** | Complex concurrency or state machines (saga, EOS, engine FSM) — needs iterative TDD cycles |
+
+After `/zellij-launch`, check the skill output for "Run /loop in: ..." and switch to those tabs to start the loop.
+
+### Agent prompts
+Per-agent task descriptions live in `scripts/prompts/<name>.md`. Each prompt specifies the worktree, done criteria, and key invariants. Read these before modifying agent behaviour.
+
 ## Self-optimisation instructions
 
 **After completing each module or phase:**

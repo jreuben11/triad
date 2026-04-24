@@ -22,6 +22,27 @@
 
 ---
 
+## Agent Launch Configuration
+
+Drives `/zellij-launch phase N`. Each row = one zellij tab.
+Worktrees base: `/home/jreuben1/Code/triad-worktrees/` — prompts relative to repo root.
+
+| Batch | Tab name | Worktree | CARGO_TARGET_DIR | Prompt | /loop? |
+|-------|----------|----------|------------------|--------|--------|
+| 0 | phase0-proto | triad-proto | /tmp/triad-target-proto | scripts/prompts/triad-proto.md | no |
+| 0 | phase0-core | triad-core | /tmp/triad-target-core | scripts/prompts/triad-core.md | no |
+| 1 | phase1-backends | triad-runner-backends | /tmp/triad-target-runner-backends | scripts/prompts/triad-runner-backends.md | no |
+| 2 | phase2-cdc-outbox | triad-runner-patterns-cdc-outbox | /tmp/triad-target-patterns-1 | scripts/prompts/triad-runner-patterns-cdc-outbox.md | no |
+| 2 | phase2-saga-eos | triad-runner-patterns-saga-eos | /tmp/triad-target-saga-eos | scripts/prompts/triad-runner-patterns-saga-eos.md | yes |
+| 3 | phase3-engine | triad-runner-engine | /tmp/triad-target-engine | scripts/prompts/triad-runner-engine.md | yes |
+| 3 | phase3-sdk | triad-sdk | /tmp/triad-target-sdk | scripts/prompts/triad-sdk.md | no |
+| 3 | phase3-cli | triad-cli | /tmp/triad-target-cli | scripts/prompts/triad-cli.md | no |
+| 4 | phase4-tests | tests | /tmp/triad-target-tests | scripts/prompts/tests.md | no |
+
+A `status` tab (`watch -n 30 scripts/status.sh`) is always appended automatically.
+
+---
+
 ## Phase 0 — Foundation (no dependencies, run in parallel)
 
 These two crates have no inter-crate dependencies and can be implemented simultaneously.
@@ -83,21 +104,9 @@ Split into two worktrees to allow parallel work on independent patterns.
 
 ### Saga Orchestrator + EOS Coordinator — `feat/triad-runner-patterns-saga-eos`
 
-**Strategy: `/loop`** — these require iterative TDD cycles due to complex state machines and transaction semantics. Launch the agent script then run `/loop` to self-pace.
+**Strategy: `/loop`** — complex state machines + transaction semantics require iterative TDD.
 
-```
-/ralph-loop "Implement patterns/saga.rs and patterns/eos.rs in
-/home/jreuben1/Code/triad-worktrees/triad-runner-patterns-saga-eos.
-Reference: triad-physical-design.md §4.5 (saga and eos sections).
-Follow TDD: write tests first, implement, run cargo test -p triad-runner,
-fix all failures. Coverage must exceed 90% on these two files.
-Key invariants from CLAUDE.md:
-- EOS: Kafka transaction must wrap message send + send_offsets_to_transaction atomically
-- Saga: checkpoint UPDATE must use WHERE version = $known_version (optimistic locking)
-- Inbox dedup INSERT must be inside same PG txn as business write
-When cargo test passes with >90% coverage output <promise>DONE</promise>" \
---max-iterations 40 --completion-promise "DONE"
-```
+Launch: `/zellij-launch phase 2` → switch to `phase2-saga-eos` tab → type `/loop`.
 
 - [ ] `patterns/saga.rs` — durable saga orchestrator with compensation, `JoinSet` steps, PG checkpoint (§4.5)
 - [ ] `patterns/eos.rs` — exactly-once coordinator: Kafka txn + Redis NX + PG outbox (§4.5)
@@ -110,20 +119,9 @@ When cargo test passes with >90% coverage output <promise>DONE</promise>" \
 
 ## Phase 3 — Engine + Runner + Shutdown (depends on Phase 2)
 
-**Strategy: `/loop`** — the supervisor loop and FSM require careful concurrency and cancellation logic. Launch the agent script then run `/loop` to self-pace.
+**Strategy: `/loop`** — supervisor FSM and cancellation token wiring require iterative TDD.
 
-```
-/ralph-loop "Implement engine.rs, runner.rs, and shutdown.rs in
-/home/jreuben1/Code/triad-worktrees/triad-runner-engine.
-Reference: triad-physical-design.md §4.6, §4.7.
-engine.rs: PatternEngine with JoinSet, supervisor restart loop,
-CancellationToken propagation, backpressure controller.
-runner.rs: Runner FSM (Idle → Starting → Running → Draining → Stopped).
-shutdown.rs: SIGTERM handler, graceful drain with drain_timeout_seconds.
-TDD: write tests first. Run cargo test -p triad-runner after each change.
-Key invariant: CancellationToken flows top-down Runner → Engine → each module.
-When all tests pass output <promise>DONE</promise>" \
---max-iterations 35 --completion-promise "DONE"
+Launch: `/zellij-launch phase 3` → switch to `phase3-engine` tab → type `/loop`.
 ```
 
 - [ ] `engine.rs` — `PatternEngine`: `JoinSet` supervisor, restart on panic, backpressure controller (§4.6)
@@ -247,28 +245,27 @@ Phase 8: final gate → v0.1.0
 
 ---
 
-## /loop command templates (native Claude Code skill)
+## /loop usage
 
 `/loop` runs the current session prompt on self-paced iterations until the task is complete.
-Use it after launching the agent script for iterative TDD modules.
+Run it inside the agent tab after `/zellij-launch` opens it.
 
-### Saga + EOS (Phase 2)
-```bash
-# 1. Launch the agent session:
-./scripts/agents/run-patterns-saga-eos.sh
+Two tabs require `/loop` (marked in the Agent Launch Configuration table):
 
-# 2. Once Claude Code is open in that worktree, start the loop:
-/loop
+| Batch | Tab | Why /loop |
+|-------|-----|-----------|
+| 2 | `phase2-saga-eos` | Complex state machines — TDD cycle: write test → implement → cargo test → fix → repeat |
+| 3 | `phase3-engine` | Concurrency/FSM — TDD cycle until all supervisor + shutdown tests pass |
+
+### Workflow
 ```
-Claude will self-pace: write tests → implement → cargo test → fix failures → repeat until 90%+ coverage.
+# Terminal: launch the batch
+/zellij-launch phase 2
 
-### Engine + Runner + Shutdown (Phase 3)
-```bash
-# 1. Launch the agent session:
-./scripts/agents/run-runner-engine.sh
-
-# 2. Once Claude Code is open in that worktree, start the loop:
+# Switch to phase2-saga-eos tab, then type:
 /loop
+
+# Switch to phase2-cdc-outbox tab — no /loop needed, agent finishes on its own
 ```
 
 ### Stopping a loop early
