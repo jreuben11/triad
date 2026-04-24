@@ -296,9 +296,17 @@ between each pair; without it, `close-tab` may fire before the tab switch comple
 ### Agents open PRs; /project-status merges via gh pr merge
 **Rule:** Each agent's Done criteria ends with `gh pr create --title ... --body ...`.
 `/project-status` step 9c runs `gh pr list --head <branch> --state open` to detect the PR;
-if found, merges via `gh pr merge <branch> --merge --delete-branch` (CI-gated).
+if found, merges via `gh pr merge <branch> --squash --delete-branch` (CI-gated).
 Branches without a PR fall back to the direct `git merge --ff-only` path (legacy/manual).
 **Fix:** Add `Bash(gh pr *)` to the project allowlist so `gh pr list` and `gh pr merge` don't prompt.
+
+### Always squash-merge feature branches — never --merge
+**Rule:** Use `gh pr merge <branch> --squash --delete-branch`, never `--merge`.
+`--merge` preserves every intermediate commit from the feature branch plus adds a merge commit,
+making `git log` on main very noisy (one agent session = 5–10 commits + a merge commit).
+`--squash` collapses the branch to a single clean commit on main — one entry per phase.
+**Why:** Discovered after Phases 0–3 were merged with `--merge`; retroactive fix would require
+rewriting pushed history. Applied from Phase 7 (feat/tests) onward.
 
 ---
 
@@ -337,7 +345,6 @@ impl CheckpointStore for NoopCheckpointStore {
 **Rule:** The path `mockall::mock::MockFooBar` is invalid — `mock` is not a module in mockall.
 The generated mock type is named `MockFooBar` in the same module scope where the trait is defined.
 **Fix:** Use `MockFooBar::new()` directly (imported via `use super::*` in the test module).
-<<<<<<< HEAD
 
 ---
 
