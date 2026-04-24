@@ -210,7 +210,8 @@ impl SagaOrchestrator {
                 SagaCheckpoint::new(self.saga_id.clone(), self.saga_name.clone())
             });
             cp.current_step = idx;
-            self.persist_checkpoint(SagaStatus::StepPending(idx)).await?;
+            self.persist_checkpoint(SagaStatus::StepPending(idx))
+                .await?;
 
             info!(
                 saga_id = %self.saga_id.0,
@@ -284,13 +285,7 @@ impl SagaOrchestrator {
                 Ok(StepOutcome::Success) | Ok(StepOutcome::Failure(_)) => {
                     let dur_ms = started.elapsed().as_millis() as u64;
                     self.repository
-                        .record_step_outcome(
-                            &self.saga_id,
-                            idx,
-                            step.name(),
-                            "compensated",
-                            dur_ms,
-                        )
+                        .record_step_outcome(&self.saga_id, idx, step.name(), "compensated", dur_ms)
                         .await?;
                 }
                 Err(e) => {
@@ -425,7 +420,8 @@ mod tests {
         let mut repo = MockSagaRepository::new();
         repo.expect_load().returning(|_| Ok(None));
         repo.expect_persist().returning(|_, _| Ok(()));
-        repo.expect_record_step_outcome().returning(|_, _, _, _, _| Ok(()));
+        repo.expect_record_step_outcome()
+            .returning(|_, _, _, _, _| Ok(()));
         Arc::new(repo)
     }
 
@@ -460,28 +456,30 @@ mod tests {
         let mut repo = MockSagaRepository::new();
         repo.expect_load().returning(|_| Ok(None));
         repo.expect_persist().returning(|_, _| Ok(()));
-        repo.expect_record_step_outcome().returning(|_, _, _, _, _| Ok(()));
+        repo.expect_record_step_outcome()
+            .returning(|_, _, _, _, _| Ok(()));
 
         // Track compensation order
         let compensation_order: Arc<tokio::sync::Mutex<Vec<String>>> =
             Arc::new(tokio::sync::Mutex::new(Vec::new()));
 
-        let make_tracking_step = |step_name: &'static str, order_ref: Arc<tokio::sync::Mutex<Vec<String>>>| {
-            let mut step = MockSagaStep::new();
-            step.expect_name().return_const(step_name.to_string());
-            step.expect_execute()
-                .returning(|_| Ok(StepOutcome::Success));
-            step.expect_compensate().returning(move |_| {
-                let order = Arc::clone(&order_ref);
-                let name = step_name.to_string();
-                // Can't await in returning(), so record synchronously via try_lock
-                if let Ok(mut v) = order.try_lock() {
-                    v.push(name);
-                }
-                Ok(StepOutcome::Success)
-            });
-            Arc::new(step) as Arc<dyn SagaStep>
-        };
+        let make_tracking_step =
+            |step_name: &'static str, order_ref: Arc<tokio::sync::Mutex<Vec<String>>>| {
+                let mut step = MockSagaStep::new();
+                step.expect_name().return_const(step_name.to_string());
+                step.expect_execute()
+                    .returning(|_| Ok(StepOutcome::Success));
+                step.expect_compensate().returning(move |_| {
+                    let order = Arc::clone(&order_ref);
+                    let name = step_name.to_string();
+                    // Can't await in returning(), so record synchronously via try_lock
+                    if let Ok(mut v) = order.try_lock() {
+                        v.push(name);
+                    }
+                    Ok(StepOutcome::Success)
+                });
+                Arc::new(step) as Arc<dyn SagaStep>
+            };
 
         let step_a = make_tracking_step("step-a", Arc::clone(&compensation_order));
         let step_b = make_tracking_step("step-b", Arc::clone(&compensation_order));
@@ -529,7 +527,8 @@ mod tests {
         repo.expect_load()
             .returning(move |_| Ok(Some(saved_cp.clone())));
         repo.expect_persist().returning(|_, _| Ok(()));
-        repo.expect_record_step_outcome().returning(|_, _, _, _, _| Ok(()));
+        repo.expect_record_step_outcome()
+            .returning(|_, _, _, _, _| Ok(()));
 
         // Track which steps actually execute
         let executed: Arc<tokio::sync::Mutex<Vec<usize>>> =
@@ -568,7 +567,11 @@ mod tests {
         assert_eq!(status, SagaStatus::Completed);
 
         let ran = executed.lock().await;
-        assert_eq!(*ran, vec![1, 2], "only steps from checkpoint onward should run");
+        assert_eq!(
+            *ran,
+            vec![1, 2],
+            "only steps from checkpoint onward should run"
+        );
     }
 
     // ------------------------------------------------------------------
@@ -579,8 +582,11 @@ mod tests {
     async fn test_saga_optimistic_lock_conflict_propagates_error() {
         let mut repo = MockSagaRepository::new();
         repo.expect_load().returning(|_| Ok(None));
-        repo.expect_persist()
-            .returning(|_, _| Err(PatternError::Saga("optimistic lock conflict: version mismatch".to_string())));
+        repo.expect_persist().returning(|_, _| {
+            Err(PatternError::Saga(
+                "optimistic lock conflict: version mismatch".to_string(),
+            ))
+        });
 
         let mut orch = SagaOrchestrator::new(
             make_saga_id(),
@@ -605,7 +611,8 @@ mod tests {
         repo.expect_load().returning(|_| Ok(None));
         // persist called twice: once during execute_forward, once during drain
         repo.expect_persist().returning(|_, _| Ok(()));
-        repo.expect_record_step_outcome().returning(|_, _, _, _, _| Ok(()));
+        repo.expect_record_step_outcome()
+            .returning(|_, _, _, _, _| Ok(()));
 
         // A step that never finishes — we'll test drain separately
         let mut step = MockSagaStep::new();
@@ -643,9 +650,7 @@ mod tests {
     async fn test_saga_drain_skips_completed_sagas() {
         // persist should NOT be called if saga is already Completed
         let mut repo = MockSagaRepository::new();
-        repo.expect_persist()
-            .never()
-            .returning(|_, _| Ok(()));
+        repo.expect_persist().never().returning(|_, _| Ok(()));
 
         let mut orch = SagaOrchestrator::new(
             make_saga_id(),
@@ -694,7 +699,10 @@ mod tests {
             vec![],
             Arc::clone(&repo) as Arc<dyn SagaRepository>,
         );
-        orch.checkpoint = Some(SagaCheckpoint::new(make_saga_id(), "order-saga".to_string()));
+        orch.checkpoint = Some(SagaCheckpoint::new(
+            make_saga_id(),
+            "order-saga".to_string(),
+        ));
         let h = orch.health();
         assert_eq!(h.in_flight, Some(1));
     }
@@ -765,12 +773,15 @@ mod tests {
         let mut repo = MockSagaRepository::new();
         repo.expect_load().returning(|_| Ok(None));
         repo.expect_persist().returning(|_, _| Ok(()));
-        repo.expect_record_step_outcome().returning(|_, _, _, _, _| Ok(()));
+        repo.expect_record_step_outcome()
+            .returning(|_, _, _, _, _| Ok(()));
 
         // step-a succeeds, step-b fails, compensation of step-a also fails
         let mut step_a = MockSagaStep::new();
         step_a.expect_name().return_const("step-a".to_string());
-        step_a.expect_execute().returning(|_| Ok(StepOutcome::Success));
+        step_a
+            .expect_execute()
+            .returning(|_| Ok(StepOutcome::Success));
         step_a
             .expect_compensate()
             .returning(|_| Err(PatternError::Saga("compensation error".to_string())));

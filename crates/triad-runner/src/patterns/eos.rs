@@ -198,11 +198,7 @@ impl EosCoordinator {
             }
         }
 
-        if let Err(e) = self
-            .transactor
-            .send_offsets_to_transaction(offsets)
-            .await
-        {
+        if let Err(e) = self.transactor.send_offsets_to_transaction(offsets).await {
             error!(error = %e, "eos: send_offsets_to_transaction failed — aborting");
             self.transactor.abort_transaction().await?;
             return Ok(EosOutcome::Aborted(e.to_string()));
@@ -565,9 +561,7 @@ mod tests {
     #[tokio::test]
     async fn test_eos_init_calls_init_transactions() {
         let mut tx = MockKafkaTransactor::new();
-        tx.expect_init_transactions()
-            .times(1)
-            .returning(|| Ok(()));
+        tx.expect_init_transactions().times(1).returning(|| Ok(()));
 
         let redis = MockEosRedisDedup::new();
         let pg = MockEosPgDedup::new();
@@ -630,9 +624,7 @@ mod tests {
     #[tokio::test]
     async fn test_eos_run_stops_on_cancellation() {
         let mut tx = MockKafkaTransactor::new();
-        tx.expect_init_transactions()
-            .times(1)
-            .returning(|| Ok(()));
+        tx.expect_init_transactions().times(1).returning(|| Ok(()));
 
         let redis = MockEosRedisDedup::new();
         let pg = MockEosPgDedup::new();
