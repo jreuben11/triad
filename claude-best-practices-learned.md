@@ -298,3 +298,34 @@ impl CheckpointStore for NoopCheckpointStore {
 **Rule:** The path `mockall::mock::MockFooBar` is invalid — `mock` is not a module in mockall.
 The generated mock type is named `MockFooBar` in the same module scope where the trait is defined.
 **Fix:** Use `MockFooBar::new()` directly (imported via `use super::*` in the test module).
+
+---
+
+## Engine / Supervisor Testing
+
+### Engine drain() cancels tokens — don't use it to assert restart counts
+**Rule:** `PatternEngine::drain()` calls `self.cancel.cancel()` before waiting for the JoinSet.
+If a module is in a backoff sleep between restarts, the cancel fires via `tokio::select!` and
+breaks the loop early. A test that calls `drain()` then asserts `run_count >= N` will flake.
+**Fix:** Poll `run_count` via a short `tokio::time::sleep` loop with a timeout, THEN drain:
+```rust
+tokio::time::timeout(Duration::from_secs(5), async move {
+    loop {
+        if rc.load(Ordering::SeqCst) >= N { break; }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+}).await.unwrap();
+engine.drain(Duration::from_secs(1)).await;
+```
+
+### ExponentialBackoff default interval is 500ms — too slow for unit tests
+**Rule:** `backoff::ExponentialBackoff::default()` starts at 500ms. Tests that assert
+"module was restarted 3 times" will timeout or flake.
+**Fix:** Set `initial_interval: Duration::from_millis(50)` in the engine's supervisor task so
+retries are fast enough for unit tests (total ~150ms for 2 retries).
+
+### sqlx::query (runtime) vs sqlx::query! (compile-time) in the runner
+**Rule:** `sqlx::query!` needs `DATABASE_URL` at compile time (or a `.sqlx/` directory for
+offline mode). Since neither exists in this repo, all SQL in `checkpoint.rs` and patterns
+uses `sqlx::query` (runtime) with `.bind()`.
+**Fix:** Never use `sqlx::query!` in triad-runner. Use `sqlx::query` for all runtime queries.
