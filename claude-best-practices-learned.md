@@ -187,3 +187,40 @@ because `io::Error::other(e)` is more idiomatic in Rust 1.74+.
 receive commits merged to main (e.g., triad-core). Always rebase the worktree onto main
 before starting implementation: `git -C <worktree> rebase main`.
 **Symptom:** triad-core source files appear empty (0 bytes) in the worktree.
+
+---
+
+## Inter-Agent Eventing
+
+### Stop hook triggers /project-status automatically
+**Rule:** Each worktree's `.claude/settings.json` has a `Stop` hook that fires when the Claude
+session exits, switching to the `status` tab and typing `/project-status\n` into it.
+**Format:**
+```json
+{"hooks": {"Stop": [{"matcher": "", "hooks": [{"type": "command",
+  "command": "zellij action go-to-tab-name status; zellij action write-chars $'/project-status\\n'"}]}]}}
+```
+**Fix:** The `$'...'` ANSI-C quoting sends a literal newline; JSON needs `\\n` (double-escaped).
+`go-to-tab-name` must precede `write-chars` — the latter types into whichever pane is focused.
+
+### /project-status auto-launches next batch after merge
+**Rule:** After a successful merge in step 9, `/project-status` step 10 reads the Agent Launch
+Configuration table, determines which batch is newly unblocked, waits 10 seconds, then opens
+the next batch's tabs directly via `zellij action new-tab / rename-tab / write-chars` — no
+manual `/zellij-launch` call needed.
+**Fix:** The 10-second `sleep` is the abort window (Ctrl-C) before irreversible tab creation.
+
+### zellij tab-close needs sleep between actions
+**Rule:** `go-to-tab-name` → `close-tab` → `go-to-tab-name status` must have `sleep 0.3`
+between each pair; without it, `close-tab` may fire before the tab switch completes.
+
+---
+
+## PR Workflow
+
+### Agents open PRs; /project-status merges via gh pr merge
+**Rule:** Each agent's Done criteria ends with `gh pr create --title ... --body ...`.
+`/project-status` step 9c runs `gh pr list --head <branch> --state open` to detect the PR;
+if found, merges via `gh pr merge <branch> --merge --delete-branch` (CI-gated).
+Branches without a PR fall back to the direct `git merge --ff-only` path (legacy/manual).
+**Fix:** Add `Bash(gh pr *)` to the project allowlist so `gh pr list` and `gh pr merge` don't prompt.
