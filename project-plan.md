@@ -90,17 +90,17 @@ Split into two worktrees to allow parallel work on independent patterns.
 
 **Strategy: parallel agent** (these patterns are complex but self-contained, mostly I/O with clear specs)
 
-- [ ] `patterns/outbox.rs` — poll `triad_outbox`, produce to Kafka inside transaction, mark published (§4.5)
-- [ ] `patterns/inbox.rs` — consume Kafka, dedup via `triad_inbox` in same PG txn, invoke handler (§4.5)
-- [ ] `patterns/cdc.rs` — WAL replication slot → `pgoutput` decoding → `ChangeEvent` stream (§4.5)
-- [ ] `patterns/cache.rs` — write-through / write-behind / read-through / cold-start modes (§4.5)
-- [ ] `patterns/webhook.rs` — HTTP delivery with retries, DLQ `triad.dlq.{topic}`, circuit breaker (§4.5)
-- [ ] `patterns/feature_flag.rs` — PG flag table → Redis distribution with hot reload (§4.5)
-- [ ] `patterns/rate_limit.rs` — Redis sliding window + token bucket (§4.5)
-- [ ] `patterns/dlq.rs` — `DlqRouter`: route to `triad.dlq.{source_topic}`, replay, purge (§4.5)
-- [ ] `patterns/feature_store.rs` — online/offline feature serving (§4.5)
-- [ ] Unit tests per pattern (mocked backends)
-- [ ] Commit and open PR → `main`
+- [x] `patterns/outbox.rs` — poll `triad_outbox`, produce to Kafka inside transaction, mark published (§4.5)
+- [x] `patterns/inbox.rs` — consume Kafka, dedup via `triad_inbox` in same PG txn, invoke handler (§4.5)
+- [x] `patterns/cdc.rs` — WAL replication slot → `pgoutput` decoding → `ChangeEvent` stream (§4.5)
+- [x] `patterns/cache.rs` — write-through / write-behind / read-through / cold-start modes (§4.5)
+- [x] `patterns/webhook.rs` — HTTP delivery with retries, DLQ `triad.dlq.{topic}`, circuit breaker (§4.5)
+- [x] `patterns/feature_flag.rs` — PG flag table → Redis distribution with hot reload (§4.5)
+- [x] `patterns/rate_limit.rs` — Redis sliding window + token bucket (§4.5)
+- [x] `patterns/dlq.rs` — `DlqRouter`: route to `triad.dlq.{source_topic}`, replay, purge (§4.5)
+- [x] `patterns/feature_store.rs` — online/offline feature serving (§4.5)
+- [x] Unit tests per pattern (mocked backends)
+- [x] Commit and open PR → `main`
 
 ### Saga Orchestrator + EOS Coordinator — `feat/triad-runner-patterns-saga-eos`
 
