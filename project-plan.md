@@ -149,12 +149,12 @@ Launch: `/zellij-launch phase 3` → switch to `phase3-engine` tab → type `/lo
 
 **Strategy: parallel agent** (CLI is mostly glue code; Clap derive + admin HTTP client)
 
-- [ ] `main.rs` — Clap `Cli` derive tree: `run`, `status`, `pattern`, `checkpoint`, `dlq`, `pipeline`, `config` subcommands (§6.1)
-- [ ] `commands/admin/mod.rs` — `AdminClient`: GET/POST/DELETE via `reqwest` (§6.2)
-- [ ] `commands/run.rs` — load config, start `Runner`, block on SIGTERM
-- [ ] All subcommands wired to AdminClient methods
-- [ ] `cargo clippy -p triad-cli -- -D warnings` clean
-- [ ] Commit and open PR → `main`
+- [x] `main.rs` — Clap `Cli` derive tree: `run`, `status`, `pattern`, `checkpoint`, `dlq`, `pipeline`, `config` subcommands (§6.1)
+- [x] `commands/admin/mod.rs` — `AdminClient`: GET/POST/DELETE via `reqwest` (§6.2)
+- [x] `commands/run.rs` — load config, stub run (pending feat/triad-runner-engine merge); SIGTERM handled by Runner::run() once available
+- [x] All subcommands wired to AdminClient methods
+- [x] `cargo clippy -p triad-cli -- -D warnings` clean
+- [x] Commit and open PR → `main`
 
 ---
 
