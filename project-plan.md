@@ -229,7 +229,15 @@ Full stub-implementation audit and wire-up:
 - [x] Integration test: EOS with simulated producer crash mid-transaction (`test_eos_kafka_txn_aborted_on_pg_commit_failure`)
 - [x] `cargo clippy --workspace -- -D warnings` clean
 - [x] Coverage ≥ 80% overall (85.17%)
-- [ ] Commit and open PR → `main`
+- [x] Commit and open PR → `main` (PR #8 merged)
+
+### Phase 8b — Observability & doc quality (`feat/bugfixes`, same branch)
+
+- [x] Doctests: `EventId`, `SagaId`, `SourcePosition`, `ChangeEvent`, `TriadConfig::default()`, `SagaBuilder` fluent API
+- [x] `#[traced_test]` on all pattern unit tests; happy-path tests assert no ERROR spans
+- [x] Prometheus metric counter assertions: outbox, eos, saga, webhook patterns
+- [x] Span attribute integration test (`test_spans.rs`): every span has `pattern_name` + `pipeline_name`
+- [ ] Commit Phase 8b and open PR → `main`
 
 ---
 
