@@ -155,6 +155,16 @@ name              = "test_spans"
 path              = "tests/test_spans.rs"
 required-features = ["integration"]
 
+[[test]]
+name              = "test_inbox"
+path              = "tests/test_inbox.rs"
+required-features = ["integration"]
+
+[[test]]
+name              = "test_circuit_breaker"
+path              = "tests/test_circuit_breaker.rs"
+required-features = ["integration"]
+
 [dev-dependencies]
 mockall                = { workspace = true }
 rstest                 = { workspace = true }
