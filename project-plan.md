@@ -129,13 +129,12 @@ Launch: `/zellij-launch phase 2` → switch to `phase2-saga-eos` tab → type `/
 **Strategy: `/loop`** — supervisor FSM and cancellation token wiring require iterative TDD.
 
 Launch: `/zellij-launch phase 3` → switch to `phase3-engine` tab → type `/loop`.
-```
 
 - [x] `engine.rs` — `PatternEngine`: `JoinSet` supervisor, restart on panic, backpressure controller (§4.6)
 - [x] `runner.rs` — `Runner` FSM: `Idle → Starting → Running → Draining → Stopped` (§4.7)
 - [x] `shutdown.rs` — SIGTERM handler, drain with timeout, ordered teardown (§4.6)
 - [x] `checkpoint.rs` — `PgCheckpointStore`: CAS UPDATE with `version` column (§3.2)
-- [x] `leader/mod.rs` — `NoopLeader` (always-wins) + `K8sLeaseLeader` behind `#[cfg(feature="kubernetes")]` (§4.9)
+- [x] `leader.rs` — `NoopLeader` (always-wins) + `K8sLeaseLeader` behind `#[cfg(feature="kubernetes")]` (§4.9)
 - [x] Unit tests for FSM transitions, shutdown sequencing (270 tests pass)
 - [x] Commit and open PR → `main`
 
