@@ -15,7 +15,9 @@ pub fn render(frame: &mut Frame, area: Rect, lag: &[LagInfo]) {
         .iter()
         .take((area.height as usize).saturating_sub(2))
         .map(|entry| {
-            let filled = ((entry.lag_messages as u64 * bar_width) / max_lag as u64) as usize;
+            // Use u128 to avoid overflow when lag_messages or max_lag approach i64::MAX.
+            let lag_clamped = (entry.lag_messages.max(0) as u128).min(max_lag as u128);
+            let filled = (lag_clamped * bar_width as u128 / max_lag as u128) as usize;
             let empty = (bar_width as usize).saturating_sub(filled);
             let bar_color = if entry.lag_messages > 1000 {
                 Color::Red

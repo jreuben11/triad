@@ -10,10 +10,12 @@ pub struct AppData {
     pub lag: Vec<LagInfo>,
     pub checkpoints: Vec<CheckpointInfo>,
     pub sagas: Vec<SagaInfo>,
+    pub dlq: Vec<DlqInfo>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LiveData {
+    #[allow(dead_code)]
     pub status: String,
     pub uptime_seconds: u64,
 }
@@ -25,7 +27,6 @@ pub struct BackendStatus {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ReadyData {
-    #[allow(dead_code)]
     pub status: String,
     pub backends: HashMap<String, BackendStatus>,
     #[allow(dead_code)]
@@ -33,6 +34,12 @@ pub struct ReadyData {
     #[allow(dead_code)]
     pub drain_mode: bool,
     pub leader: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DlqInfo {
+    pub topic: String,
+    pub message_count: i64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -106,6 +113,14 @@ impl AdminClient {
             .unwrap_or_default();
         let sagas = self.get::<Vec<SagaInfo>>("/saga").await.unwrap_or_default();
 
+        let mut dlq = Vec::with_capacity(patterns.len());
+        for p in &patterns {
+            let topic = format!("triad.dlq.{}", p.name);
+            if let Ok(info) = self.get::<DlqInfo>(&format!("/dlq/{}", topic)).await {
+                dlq.push(info);
+            }
+        }
+
         AppData {
             connecting: false,
             live,
@@ -114,6 +129,7 @@ impl AdminClient {
             lag,
             checkpoints,
             sagas,
+            dlq,
         }
     }
 

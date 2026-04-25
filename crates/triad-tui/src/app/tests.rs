@@ -671,3 +671,151 @@ fn test_render_config_validate_err() {
     app.config_validate_result = Some(Err("Missing required field: brokers".to_string()));
     smoke_render(&mut app, 80, 24);
 }
+
+// --- Finding 7: lag_bar u128 overflow fix ---
+
+#[test]
+fn test_lag_bar_extreme_values_no_panic() {
+    let mut app = App::new();
+    app.screen = Screen::Dashboard;
+    app.data.lag = vec![crate::client::LagInfo {
+        topic: "extreme-topic".to_string(),
+        lag_messages: i64::MAX,
+        pattern_name: "outbox".to_string(),
+        partition: 0,
+    }];
+    smoke_render(&mut app, 80, 24);
+}
+
+// --- Finding 8: config scroll u16::MAX no ratatui overflow ---
+
+#[test]
+fn test_config_scroll_extreme_no_panic() {
+    let mut app = App::new();
+    app.screen = Screen::Config;
+    app.config_scroll = u16::MAX;
+    smoke_render(&mut app, 80, 24);
+}
+
+// --- Finding 2: dashboard badge shows RUNNING not OK ---
+
+#[test]
+fn test_dashboard_header_shows_running_when_live_ok() {
+    use ratatui::{Terminal, backend::TestBackend};
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let mut app = App::new();
+    app.data.live = Some(crate::client::LiveData {
+        status: "ok".to_string(),
+        uptime_seconds: 100,
+    });
+    app.data.ready = Some(crate::client::ReadyData {
+        status: "ok".to_string(),
+        backends: std::collections::HashMap::new(),
+        cold_start_complete: true,
+        drain_mode: false,
+        leader: true,
+    });
+    terminal
+        .draw(|f| app.render(f, std::time::Duration::from_millis(16)))
+        .unwrap();
+    let buf = terminal.backend().buffer().clone();
+    let content: String = buf.content().iter().map(|c| c.symbol()).collect();
+    assert!(
+        content.contains("RUNNING"),
+        "badge must show RUNNING, got: {:?}",
+        content.chars().take(160).collect::<String>()
+    );
+}
+
+// --- Finding 4: dashboard badge reflects backend degradation ---
+
+#[test]
+fn test_dashboard_header_shows_degraded_when_backend_down() {
+    use ratatui::{Terminal, backend::TestBackend};
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let mut app = App::new();
+    app.data.live = Some(crate::client::LiveData {
+        status: "ok".to_string(),
+        uptime_seconds: 100,
+    });
+    let mut backends = std::collections::HashMap::new();
+    backends.insert(
+        "redis".to_string(),
+        crate::client::BackendStatus {
+            status: "degraded".to_string(),
+        },
+    );
+    app.data.ready = Some(crate::client::ReadyData {
+        status: "degraded".to_string(),
+        backends,
+        cold_start_complete: true,
+        drain_mode: false,
+        leader: false,
+    });
+    terminal
+        .draw(|f| app.render(f, std::time::Duration::from_millis(16)))
+        .unwrap();
+    let buf = terminal.backend().buffer().clone();
+    let content: String = buf.content().iter().map(|c| c.symbol()).collect();
+    assert!(
+        content.contains("DEGRADED"),
+        "badge must show DEGRADED when ready.status=degraded"
+    );
+}
+
+// --- Finding 1: DLQ screen shows actual message count not "?" ---
+
+#[test]
+fn test_dlq_screen_shows_count_from_data() {
+    use ratatui::{Terminal, backend::TestBackend};
+    let backend = TestBackend::new(80, 10);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let mut app = App::new();
+    app.screen = Screen::Dlq;
+    app.data.patterns = vec![crate::client::PatternInfo {
+        name: "orders".to_string(),
+        pattern_type: "outbox".to_string(),
+        status: "Running".to_string(),
+    }];
+    app.data.dlq = vec![crate::client::DlqInfo {
+        topic: "triad.dlq.orders".to_string(),
+        message_count: 42,
+    }];
+    terminal
+        .draw(|f| app.render(f, std::time::Duration::from_millis(16)))
+        .unwrap();
+    let buf = terminal.backend().buffer().clone();
+    let content: String = buf.content().iter().map(|c| c.symbol()).collect();
+    assert!(
+        content.contains("42"),
+        "DLQ count must show 42 from data.dlq"
+    );
+}
+
+#[test]
+fn test_dlq_screen_shows_zero_count_when_no_dlq_data() {
+    use ratatui::{Terminal, backend::TestBackend};
+    let backend = TestBackend::new(80, 10);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let mut app = App::new();
+    app.screen = Screen::Dlq;
+    app.data.patterns = vec![crate::client::PatternInfo {
+        name: "orders".to_string(),
+        pattern_type: "outbox".to_string(),
+        status: "Running".to_string(),
+    }];
+    // No dlq data — count should fall back to 0, not "?"
+    terminal
+        .draw(|f| app.render(f, std::time::Duration::from_millis(16)))
+        .unwrap();
+    let buf = terminal.backend().buffer().clone();
+    let content: String = buf.content().iter().map(|c| c.symbol()).collect();
+    // "?" as a message count should not appear
+    assert!(
+        !content.contains("  ?  "),
+        "DLQ must not show ? as count; got: {:?}",
+        content.chars().take(320).collect::<String>()
+    );
+}

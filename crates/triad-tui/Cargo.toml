@@ -22,6 +22,7 @@ reqwest      = { workspace = true }
 serde        = { workspace = true }
 clap         = { workspace = true }
 anyhow       = { workspace = true }
+futures      = { workspace = true }
 
 [dev-dependencies]
 tokio-test   = { workspace = true }

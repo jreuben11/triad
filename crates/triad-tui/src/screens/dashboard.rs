@@ -39,14 +39,22 @@ pub fn render(frame: &mut Frame, area: Rect, data: &AppData) {
 }
 
 fn render_header(frame: &mut Frame, area: Rect, data: &AppData) {
-    let status = if data.connecting {
-        "CONNECTING…"
+    // Derive status from ready endpoint (reflects backend health) when available;
+    // fall back to live endpoint (process-alive only) when ready data is not yet fetched.
+    let (status, status_color) = if data.connecting {
+        ("CONNECTING…".to_string(), Color::Yellow)
+    } else if let Some(ready) = &data.ready {
+        match ready.status.as_str() {
+            "ok" => ("RUNNING".to_string(), Color::Green),
+            "degraded" => ("DEGRADED".to_string(), Color::Red),
+            _ => ("UNKNOWN".to_string(), Color::Red),
+        }
+    } else if data.live.is_some() {
+        ("RUNNING".to_string(), Color::Green)
     } else {
-        data.live
-            .as_ref()
-            .map(|l| l.status.as_str())
-            .unwrap_or("UNKNOWN")
+        ("UNKNOWN".to_string(), Color::Red)
     };
+
     let uptime = data
         .live
         .as_ref()
@@ -58,18 +66,9 @@ fn render_header(frame: &mut Frame, area: Rect, data: &AppData) {
         .map(|r| if r.leader { "✓" } else { "✗" })
         .unwrap_or("?");
 
-    let status_color = match status {
-        "ok" => Color::Green,
-        "CONNECTING…" => Color::Yellow,
-        _ => Color::Red,
-    };
-
     let line = Line::from(vec![
         Span::styled("▸ triad  ", Style::default().add_modifier(Modifier::BOLD)),
-        Span::styled(
-            format!("■ {}  ", status.to_uppercase()),
-            Style::default().fg(status_color),
-        ),
+        Span::styled(format!("■ {}  ", status), Style::default().fg(status_color)),
         Span::raw(format!("↑ {}  leader: {}  v0.1.0", uptime, leader)),
     ]);
     let header = Paragraph::new(line).block(Block::default().borders(Borders::ALL));
