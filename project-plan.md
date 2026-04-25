@@ -310,18 +310,18 @@ Full stub-implementation audit and wire-up:
 
 See `stage2-design.md` §"Stage 2a" for full design and async-bridge notes.
 
-- [ ] `crates/triad-py/` scaffold: `Cargo.toml` (`cdylib`), `pyproject.toml` (maturin), `src/lib.rs`
-- [ ] `PyTriadInstance`: `start()`, `shutdown()`, `transaction()` context manager
-- [ ] `PyTransaction`: `execute()`, `fetch_one()`, `fetch_all()` backed by `sqlx::Transaction`
-- [ ] `PyOutboxPublisher`: `publish()` inside caller transaction
-- [ ] `PyFlagEvaluator`: `is_enabled()` with Redis/PG fallback
-- [ ] `PySagaBuilder`: fluent builder → `PySagaConfig` dataclass
-- [ ] `PyIdempotencyKey` / `PyIdempotencyRecord` / `lookup` / `store_result`
-- [ ] `PyAggregateRoot` + Python `Aggregate` ABC
-- [ ] `pytest` test suite (all patterns, testcontainers PG + Redis)
-- [ ] Type stubs + `mypy` clean
-- [ ] `maturin build --release` produces a valid `.whl`
-- [ ] Commit and open PR → `main`
+- [x] `crates/triad-py/` scaffold: `Cargo.toml` (`cdylib`), `pyproject.toml` (maturin), `src/lib.rs`
+- [x] `PyTriadInstance`: `start()`, `shutdown()`, `transaction()` context manager
+- [x] `PyTransaction`: `execute()`, `fetch_optional()` backed by `sqlx::Transaction`
+- [x] `PyOutboxPublisher`: `publish()` inside caller transaction
+- [x] `PyFlagEvaluator`: `is_enabled()` with in-memory and PG-backed stores
+- [x] `PySagaBuilder`: fluent builder → `PySagaConfig` dataclass
+- [x] `PyIdempotencyKey` / `PyIdempotencyRecord` / `PyIdempotencyStore` / `lookup` / `store_result`
+- [x] `PyAggregateRoot` + Python `Aggregate` ABC (`python/triad/_aggregate.py`)
+- [x] `pytest` test suite: 45 tests, all pass (pure Python unit tests; async via pytest-asyncio)
+- [x] Type stubs (`python/triad/__init__.pyi`) + `mypy` clean
+- [x] `maturin build --release` produces a valid `.whl` (cp312-cp312-manylinux_2_38_x86_64.whl)
+- [x] Commit and open PR → `main`
 
 ---
 

@@ -523,6 +523,7 @@ pipeline reload (re-read config). These are semantically distinct operations.
 **Fix:** Define four variants: `Pause(String)`, `Resume(String)`, `Replay(String)` for pattern
 replay, and `Reload(String)` for pipeline/config reload.
 
+
 ---
 
 ## TUI Crate (triad-tui, Phase 11)
@@ -549,3 +550,64 @@ fields that are not read in the UI. Clippy `-D warnings` treats these as dead co
 **Fix:** Add `#[allow(dead_code)]` to individual unused fields. Avoid `#[allow(dead_code)]`
 on the whole struct — that suppresses legitimate warnings on future fields. Alternatively,
 add `#[allow(dead_code)]` to effect/API constructors that are reserved for future wiring.
+
+---
+
+## PyO3 0.28 Bindings (triad-py)
+
+### pyo3 0.28: `Python::with_gil` renamed to `Python::attach`
+**Rule:** `Python::with_gil(|py| ...)` does not exist in pyo3 0.28. The method was renamed.
+**Fix:** Use `Python::attach(|py| ...)` everywhere. The closure semantics are identical.
+
+### pyo3 0.28: `PyObject` removed from prelude — use `Py<PyAny>`
+**Rule:** `PyObject` is not exported by `pyo3::prelude::*` in version 0.28. It was an alias
+for `Py<PyAny>` and is no longer available by that name.
+**Fix:** Replace all `PyObject` with `Py<PyAny>`. Importing `use pyo3::ffi::PyObject` gives the
+raw FFI type — not what you want for high-level code.
+
+### pyo3 0.28: `&PyModule` → `&Bound<'_, PyModule>` in `#[pymodule]`
+**Rule:** The `#[pymodule]` fn signature must use `&Bound<'_, PyModule>` not `&PyModule`.
+**Fix:** `fn _triad(m: &Bound<'_, PyModule>) -> PyResult<()>`
+
+### pyo3 0.28: `experimental-async` feature enables `async fn` in `#[pymethods]`
+**Rule:** To use `async fn` in `#[pymethods]`, add `features = ["experimental-async"]` to the
+pyo3 dependency. Async methods become Python coroutines polled by asyncio — no separate
+`pyo3-asyncio` crate needed.
+**Fix:** The async fn body polls on the asyncio event loop. For Tokio-based futures (sqlx, redis,
+etc.), bridge with `OnceLock<Runtime>` + `oneshot` channels:
+```rust
+static RT: OnceLock<Runtime> = OnceLock::new();
+// In async #[pymethods]:
+let (send, recv) = futures::channel::oneshot::channel();
+RT.get().unwrap().spawn(async move { let _ = send.send(tokio_op().await); });
+recv.await.map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+```
+
+### pyo3 0.28: `#[pyclass]` with `#[derive(Clone)]` deprecated `FromPyObject` impl
+**Rule:** `#[pyclass]` + `#[derive(Clone)]` implicitly generated a `FromPyObject` impl; in 0.28
+this is deprecated and triggers `-D warnings` failures.
+**Fix:** Add `skip_from_py_object` to the pyclass attribute: `#[pyclass(skip_from_py_object)]`.
+
+### pyo3 0.28: `Option<T>` args in `#[pyfunction]` are NOT automatically optional
+**Rule:** A `#[pyfunction]` with `foo: Option<u64>` requires explicit `#[pyo3(signature = (...))]`
+to make the argument optional at the Python call site. Without it, Python must explicitly pass
+the argument.
+**Fix:** Add `#[pyo3(signature = (arg1, optional_arg=None))]` above the function.
+
+### pyo3 0.28: `Arc::clone` pattern for extracting from `Py<T>` in async methods
+**Rule:** `async fn` in `#[pymethods]` with `slf: Py<Self>` cannot hold a `PyRef` across await
+points (GIL-tied). Extract what you need before the first await.
+**Fix:** Use `Python::attach` to extract values before spawning the tokio task:
+```rust
+async fn my_method(slf: Py<Self>) -> PyResult<()> {
+    let arc_val = Python::attach(|py| Arc::clone(&slf.borrow(py).inner_arc));
+    // Now arc_val is 'static-safe, use in async block
+    ...
+}
+```
+
+### maturin: run from the crate directory, not the workspace root
+**Rule:** `maturin develop` fails with "the manifest-path must be a path to a Cargo.toml file"
+if you pass `--manifest-path path/to/pyproject.toml`. maturin expects to be run from the
+directory that contains `pyproject.toml`.
+**Fix:** `cd crates/triad-py && maturin develop --uv` (or use the directory form).

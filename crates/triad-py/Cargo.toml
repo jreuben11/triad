@@ -1,0 +1,42 @@
+[package]
+name           = "triad-py"
+description    = "PyO3 Python bindings for triad-sdk"
+version.workspace      = true
+edition.workspace      = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+rust-version.workspace = true
+
+[lib]
+name       = "triad"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+extension-module = ["pyo3/extension-module"]
+
+[dependencies]
+triad-sdk    = { path = "../triad-sdk" }
+triad-core   = { path = "../triad-core" }
+triad-runner = { path = "../triad-runner" }
+
+pyo3 = { version = "0.28", features = ["experimental-async"] }
+
+tokio           = { workspace = true }
+tokio-postgres  = { workspace = true }
+serde_json      = { workspace = true }
+serde           = { workspace = true }
+sqlx            = { workspace = true }
+uuid            = { workspace = true }
+chrono          = { workspace = true }
+thiserror       = { workspace = true }
+tracing         = { workspace = true }
+async-trait     = { workspace = true }
+futures         = { workspace = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+rstest     = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = []
