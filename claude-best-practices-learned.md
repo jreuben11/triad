@@ -169,6 +169,15 @@ the table, neither skill can create its tabs automatically.
 10 (`feat/triad-py`), and 11 (`feat/triad-tui`) need entries before their auto-launch works.
 Phase 9 has no new worktree — it runs in the main repo. Add a note in the table rather than a row.
 
+### TOML subtable insertion must come AFTER all fields of the parent table
+**Rule:** `[package.metadata.cargo-machete]` is a subtable of `[package]`. If you insert it
+before all `[package]` key-value pairs, the fields after the subtable header (e.g.
+`edition.workspace = true`) are parsed as part of `package.metadata.cargo-machete`, not
+`package`. This causes `edition` to be missing from `[package]`, silently reverting to
+Rust 2015 and breaking compilation with E0670 errors.
+**Fix:** Always place all `[package]` fields (`name`, `description`, `version`, `edition`, etc.)
+BEFORE any `[package.metadata.*]` sections.
+
 ### Plan checklist drives skill behaviour
 - `not-started` (all `[ ]`): skip testing — no commits to evaluate
 - `in-progress` (some `[x]`): run tests, report results, do not auto-merge
