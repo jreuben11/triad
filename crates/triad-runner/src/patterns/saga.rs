@@ -1,8 +1,10 @@
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
+use metrics::counter;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, warn};
+use triad_core::metrics::names;
 use triad_core::{
     error::PatternError,
     traits::{PatternModule, RunContext},
@@ -249,6 +251,7 @@ impl SagaOrchestrator {
         }
 
         self.persist_checkpoint(SagaStatus::Completed).await?;
+        counter!(names::SAGA_COMPLETED_TOTAL).increment(1);
         info!(saga_id = %self.saga_id.0, "saga completed");
         Ok(SagaStatus::Completed)
     }
@@ -303,6 +306,7 @@ impl SagaOrchestrator {
         }
 
         self.persist_checkpoint(SagaStatus::RolledBack).await?;
+        counter!(names::SAGA_ROLLED_BACK_TOTAL).increment(1);
         warn!(saga_id = %self.saga_id.0, "saga rolled back");
         Ok(SagaStatus::RolledBack)
     }
@@ -386,6 +390,7 @@ mod tests {
     use mockall::predicate::*;
     use rstest::rstest;
     use std::sync::Arc;
+    use tracing_test::traced_test;
     use triad_core::types::SagaId;
 
     // ------------------------------------------------------------------
@@ -419,6 +424,7 @@ mod tests {
     // Happy-path: all steps succeed → Completed
     // ------------------------------------------------------------------
 
+    #[traced_test]
     #[tokio::test]
     async fn test_saga_happy_path_all_steps_succeed_returns_completed() {
         let repo = repo_with_no_checkpoint();
@@ -435,12 +441,14 @@ mod tests {
 
         let status = orch.execute_forward().await.unwrap();
         assert_eq!(status, SagaStatus::Completed);
+        assert!(!logs_contain("ERROR"));
     }
 
     // ------------------------------------------------------------------
     // Compensation: step K fails → steps K-1..0 compensated in reverse
     // ------------------------------------------------------------------
 
+    #[traced_test]
     #[tokio::test]
     async fn test_saga_compensation_path_rolled_back_on_step_failure() {
         let mut repo = MockSagaRepository::new();
@@ -822,5 +830,88 @@ mod tests {
         assert_eq!(cp.version, 0);
         assert!(!cp.compensation_mode);
         assert_eq!(cp.status, SagaStatus::Started);
+    }
+
+    // -- Prometheus metric assertions ------------------------------------------
+
+    #[test]
+    fn test_saga_completed_total_emitted_on_happy_path() {
+        use metrics_util::debugging::DebuggingRecorder;
+
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, || {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(async {
+                    let repo = repo_with_no_checkpoint();
+                    let mut orch = SagaOrchestrator::new(
+                        make_saga_id(),
+                        "order-saga",
+                        vec![success_step("step-1")],
+                        Arc::clone(&repo) as Arc<dyn SagaRepository>,
+                    );
+                    let status = orch.execute_forward().await.unwrap();
+                    assert_eq!(status, SagaStatus::Completed);
+                });
+        });
+
+        let snap = snapshotter.snapshot();
+        let counters = snap.into_vec();
+        let found = counters
+            .iter()
+            .any(|(k, ..)| k.key().name() == names::SAGA_COMPLETED_TOTAL);
+        assert!(found, "counter {} not emitted", names::SAGA_COMPLETED_TOTAL);
+    }
+
+    #[test]
+    fn test_saga_rolled_back_total_emitted_on_step_failure() {
+        use metrics_util::debugging::DebuggingRecorder;
+
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, || {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(async {
+                    let mut failing_step = MockSagaStep::new();
+                    failing_step
+                        .expect_name()
+                        .return_const("failing-step".to_string());
+                    failing_step
+                        .expect_execute()
+                        .returning(|_| Ok(StepOutcome::Failure("injected failure".to_string())));
+
+                    let mut repo = MockSagaRepository::new();
+                    repo.expect_load().returning(|_| Ok(None));
+                    repo.expect_persist().returning(|_, _| Ok(()));
+                    repo.expect_record_step_outcome()
+                        .returning(|_, _, _, _, _| Ok(()));
+
+                    let mut orch = SagaOrchestrator::new(
+                        make_saga_id(),
+                        "test-saga",
+                        vec![Arc::new(failing_step)],
+                        Arc::new(repo) as Arc<dyn SagaRepository>,
+                    );
+                    let status = orch.execute_forward().await.unwrap();
+                    assert_eq!(status, SagaStatus::RolledBack);
+                });
+        });
+
+        let snap = snapshotter.snapshot();
+        let counters = snap.into_vec();
+        let found = counters
+            .iter()
+            .any(|(k, ..)| k.key().name() == names::SAGA_ROLLED_BACK_TOTAL);
+        assert!(
+            found,
+            "counter {} not emitted",
+            names::SAGA_ROLLED_BACK_TOTAL
+        );
     }
 }

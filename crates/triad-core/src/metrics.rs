@@ -42,6 +42,13 @@ pub mod names {
     pub const REPLICATION_LAG_SECONDS: &str = "triad_replication_lag_seconds";
     pub const BACKPRESSURE_ACTIVE: &str = "triad_backpressure_active";
     pub const SAGA_COMPENSATION_TOTAL: &str = "triad_saga_compensation_total";
+    pub const OUTBOX_PUBLISHED_TOTAL: &str = "triad_outbox_published_total";
+    pub const OUTBOX_ERRORS_TOTAL: &str = "triad_outbox_errors_total";
+    pub const EOS_COMMITTED_TOTAL: &str = "triad_eos_committed_total";
+    pub const EOS_ABORTED_TOTAL: &str = "triad_eos_aborted_total";
+    pub const SAGA_ROLLED_BACK_TOTAL: &str = "triad_saga_rolled_back_total";
+    pub const WEBHOOK_DELIVERED_TOTAL: &str = "triad_webhook_delivered_total";
+    pub const WEBHOOK_DLQ_TOTAL: &str = "triad_webhook_dlq_total";
 }
 
 /// Histogram bucket sets for each metric family.
@@ -124,6 +131,13 @@ mod tests {
     #[case(names::REPLICATION_LAG_SECONDS, "triad_replication_lag_seconds")]
     #[case(names::BACKPRESSURE_ACTIVE, "triad_backpressure_active")]
     #[case(names::SAGA_COMPENSATION_TOTAL, "triad_saga_compensation_total")]
+    #[case(names::OUTBOX_PUBLISHED_TOTAL, "triad_outbox_published_total")]
+    #[case(names::OUTBOX_ERRORS_TOTAL, "triad_outbox_errors_total")]
+    #[case(names::EOS_COMMITTED_TOTAL, "triad_eos_committed_total")]
+    #[case(names::EOS_ABORTED_TOTAL, "triad_eos_aborted_total")]
+    #[case(names::SAGA_ROLLED_BACK_TOTAL, "triad_saga_rolled_back_total")]
+    #[case(names::WEBHOOK_DELIVERED_TOTAL, "triad_webhook_delivered_total")]
+    #[case(names::WEBHOOK_DLQ_TOTAL, "triad_webhook_dlq_total")]
     fn test_metric_name_values(#[case] actual: &str, #[case] expected: &str) {
         assert_eq!(actual, expected);
     }
@@ -173,6 +187,13 @@ mod tests {
             names::REPLICATION_LAG_SECONDS,
             names::BACKPRESSURE_ACTIVE,
             names::SAGA_COMPENSATION_TOTAL,
+            names::OUTBOX_PUBLISHED_TOTAL,
+            names::OUTBOX_ERRORS_TOTAL,
+            names::EOS_COMMITTED_TOTAL,
+            names::EOS_ABORTED_TOTAL,
+            names::SAGA_ROLLED_BACK_TOTAL,
+            names::WEBHOOK_DELIVERED_TOTAL,
+            names::WEBHOOK_DLQ_TOTAL,
         ];
         for name in all {
             assert!(name.starts_with("triad_"), "{name} missing triad_ prefix");

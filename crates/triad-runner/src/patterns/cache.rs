@@ -302,6 +302,7 @@ mod tests {
     use super::*;
     use rstest::rstest;
     use tokio_util::sync::CancellationToken;
+    use tracing_test::traced_test;
     use triad_core::types::{PatternName, PipelineName};
 
     fn make_redis() -> MockCacheRedis {
@@ -313,6 +314,7 @@ mod tests {
 
     // --- WriteThrough ---
 
+    #[traced_test]
     #[tokio::test]
     async fn test_write_through_write_updates_pg_and_redis() {
         let mut redis = make_redis();
@@ -322,8 +324,10 @@ mod tests {
 
         let wt = WriteThrough::new(Arc::new(redis), Arc::new(pg), "key:{id}", Some(60));
         assert!(wt.write("key:1", b"value").await.is_ok());
+        assert!(!logs_contain("ERROR"));
     }
 
+    #[traced_test]
     #[tokio::test]
     async fn test_write_through_read_cache_hit() {
         let mut redis = make_redis();
@@ -335,8 +339,10 @@ mod tests {
         let wt = WriteThrough::new(Arc::new(redis), Arc::new(pg), "key:{id}", Some(60));
         let result = wt.read("key:1").await.unwrap();
         assert_eq!(result, Some(b"cached".to_vec()));
+        assert!(!logs_contain("ERROR"));
     }
 
+    #[traced_test]
     #[tokio::test]
     async fn test_write_through_read_cache_miss_reads_pg_and_populates_cache() {
         let mut redis = make_redis();
@@ -349,10 +355,12 @@ mod tests {
         let wt = WriteThrough::new(Arc::new(redis), Arc::new(pg), "k", None);
         let result = wt.read("k:1").await.unwrap();
         assert_eq!(result, Some(b"from-pg".to_vec()));
+        assert!(!logs_contain("ERROR"));
     }
 
     // --- WriteBehind ---
 
+    #[traced_test]
     #[tokio::test]
     async fn test_write_behind_write_stores_to_redis_and_queues() {
         let mut redis = make_redis();
@@ -363,8 +371,10 @@ mod tests {
         assert!(wb.write("k", b"v").await.is_ok());
         let pending = wb.pending.lock().await;
         assert_eq!(pending.len(), 1);
+        assert!(!logs_contain("ERROR"));
     }
 
+    #[traced_test]
     #[tokio::test]
     async fn test_write_behind_flush_sends_to_pg() {
         let mut redis = make_redis();
@@ -380,14 +390,17 @@ mod tests {
         // Pending should be empty after flush
         let pending = wb.pending.lock().await;
         assert!(pending.is_empty());
+        assert!(!logs_contain("ERROR"));
     }
 
+    #[traced_test]
     #[tokio::test]
     async fn test_write_behind_flush_empty_returns_zero() {
         let redis = make_redis();
         let pg = make_pg();
         let wb = WriteBehind::new("wb", Arc::new(redis), Arc::new(pg), Duration::from_secs(5));
         assert_eq!(wb.flush().await.unwrap(), 0);
+        assert!(!logs_contain("ERROR"));
     }
 
     #[tokio::test]

@@ -4,6 +4,20 @@ use std::collections::HashMap;
 use crate::error::ConfigError;
 
 /// Root configuration struct. Loaded from `triad.yaml` with `TRIAD_` env var overlay.
+///
+/// # Examples
+///
+/// Config components round-trip cleanly through `serde_json`:
+///
+/// ```
+/// use triad_core::config::PatternConfig;
+///
+/// let json = r#"{"type":"outbox","name":"orders-out","table":"outbox","kafka_topic":"orders"}"#;
+/// let pc: PatternConfig = serde_json::from_str(json).unwrap();
+/// let round_tripped = serde_json::to_string(&pc).unwrap();
+/// let pc2: PatternConfig = serde_json::from_str(&round_tripped).unwrap();
+/// assert!(matches!(&pc2, PatternConfig::Outbox(c) if c.name == "orders-out"));
+/// ```
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TriadConfig {
     pub backends: BackendsConfig,

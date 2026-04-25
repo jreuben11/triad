@@ -211,6 +211,7 @@ impl WebhookDispatcher {
                             None,
                         )
                         .await?;
+                    counter!(names::WEBHOOK_DELIVERED_TOTAL).increment(1);
                     info!(url, status, "webhook delivered");
                     return Ok(());
                 }
@@ -257,6 +258,7 @@ impl WebhookDispatcher {
             traceparent: None,
         };
         self.dlq.route(&failed).await?;
+        counter!(names::WEBHOOK_DLQ_TOTAL).increment(1);
         error!(
             url,
             attempts = self.max_attempts,
@@ -329,6 +331,7 @@ mod tests {
     use super::*;
     use rstest::rstest;
     use tokio_util::sync::CancellationToken;
+    use tracing_test::traced_test;
     use triad_core::types::{PatternName, PipelineName};
 
     fn make_sub(id: &str) -> WebhookSubscription {
@@ -385,6 +388,7 @@ mod tests {
         assert_ne!(sig1, sig2);
     }
 
+    #[traced_test]
     #[tokio::test]
     async fn test_webhook_deliver_success() {
         let consumer = MockWebhookConsumer::new();
@@ -406,8 +410,10 @@ mod tests {
         let dispatcher = make_dispatcher(consumer, store, http, MockDlqProducer::new());
         let event = make_event(make_sub("sub-1"));
         assert!(dispatcher.deliver(&event).await.is_ok());
+        assert!(!logs_contain("ERROR"));
     }
 
+    #[traced_test]
     #[tokio::test]
     async fn test_webhook_deliver_routes_to_dlq_on_max_retries() {
         let consumer = MockWebhookConsumer::new();
@@ -439,6 +445,7 @@ mod tests {
         );
         let event = make_event(make_sub("sub-2"));
         assert!(dispatcher.deliver(&event).await.is_ok()); // ok because DLQ routing succeeded
+        // error! is logged on DLQ routing — that's expected behavior, not checked here
     }
 
     #[test]
@@ -481,5 +488,91 @@ mod tests {
             MockDlqProducer::new(),
         );
         assert_eq!(dispatcher.pattern_type(), expected);
+    }
+
+    // -- Prometheus metric assertions ------------------------------------------
+
+    #[test]
+    fn test_webhook_delivered_total_emitted_on_2xx() {
+        use metrics_util::debugging::DebuggingRecorder;
+
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, || {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(async {
+                    let consumer = MockWebhookConsumer::new();
+                    let mut store = MockWebhookStore::new();
+                    store
+                        .expect_log_delivery()
+                        .returning(|_, _, _, _, _| Ok(()));
+                    let mut http = MockHttpDelivery::new();
+                    http.expect_post().returning(|_, _, _| Ok(200));
+
+                    let dispatcher = make_dispatcher(consumer, store, http, MockDlqProducer::new());
+                    let event = make_event(make_sub("sub-metric"));
+                    dispatcher.deliver(&event).await.unwrap();
+                });
+        });
+
+        let snap = snapshotter.snapshot();
+        let counters = snap.into_vec();
+        let found = counters
+            .iter()
+            .any(|(k, ..)| k.key().name() == names::WEBHOOK_DELIVERED_TOTAL);
+        assert!(
+            found,
+            "counter {} not emitted",
+            names::WEBHOOK_DELIVERED_TOTAL
+        );
+    }
+
+    #[test]
+    fn test_webhook_dlq_total_emitted_after_max_retries() {
+        use metrics_util::debugging::DebuggingRecorder;
+
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, || {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(async {
+                    let consumer = MockWebhookConsumer::new();
+                    let mut store = MockWebhookStore::new();
+                    store
+                        .expect_log_delivery()
+                        .returning(|_, _, _, _, _| Ok(()));
+                    let mut http = MockHttpDelivery::new();
+                    http.expect_post()
+                        .returning(|_, _, _| Err(PatternError::Saga("network error".to_string())));
+                    let mut dlq_producer = MockDlqProducer::new();
+                    dlq_producer.expect_produce().returning(|_, _, _, _| Ok(()));
+
+                    let dlq = Arc::new(DlqRouter::new(Arc::new(dlq_producer)));
+                    let dispatcher = WebhookDispatcher::new(
+                        "test",
+                        Arc::new(consumer),
+                        Arc::new(store),
+                        Arc::new(http),
+                        dlq,
+                        "orders",
+                        1, // 1 attempt → immediate DLQ
+                    );
+                    let event = make_event(make_sub("sub-dlq"));
+                    dispatcher.deliver(&event).await.unwrap();
+                });
+        });
+
+        let snap = snapshotter.snapshot();
+        let counters = snap.into_vec();
+        let found = counters
+            .iter()
+            .any(|(k, ..)| k.key().name() == names::WEBHOOK_DLQ_TOTAL);
+        assert!(found, "counter {} not emitted", names::WEBHOOK_DLQ_TOTAL);
     }
 }

@@ -129,12 +129,23 @@ fn evaluate_flag(flag: &triad_runner::patterns::feature_flag::FeatureFlag) -> bo
 
 /// Fluent builder for assembling a `SagaPatternConfig`.
 ///
+/// # Examples
+///
 /// ```
+/// use triad_sdk::patterns::SagaBuilder;
+///
 /// let config = SagaBuilder::new("order-saga", "orders.commands", "OrderCreate", "30s")
 ///     .step("reserve-inventory", "inventory.commands", "inventory.replies")
-///     .step("charge-payment",    "payments.commands",  "payments.replies")
-///     .on_compensation("order.compensate")
+///     .with_compensation("inventory.compensate")
+///     .step("charge-payment", "payments.commands", "payments.replies")
+///     .with_compensation("payments.compensate")
 ///     .build();
+///
+/// assert_eq!(config.name, "order-saga");
+/// assert_eq!(config.steps.len(), 2);
+/// assert_eq!(config.steps[0].name, "reserve-inventory");
+/// assert_eq!(config.steps[0].compensation.as_deref(), Some("inventory.compensate"));
+/// assert_eq!(config.steps[1].compensation.as_deref(), Some("payments.compensate"));
 /// ```
 pub struct SagaBuilder {
     config: SagaPatternConfig,
