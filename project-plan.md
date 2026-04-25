@@ -10,15 +10,17 @@
 | Worktree path | Branch | Agent strategy |
 |---|---|---|
 | `/home/jreuben1/Code/triad` | `main` | integration / merge |
-| `.../triad-worktrees/triad-proto` | `feat/triad-proto` | parallel agent |
-| `.../triad-worktrees/triad-core` | `feat/triad-core` | parallel agent |
-| `.../triad-worktrees/triad-runner-backends` | `feat/triad-runner-backends` | parallel agent |
-| `.../triad-worktrees/triad-runner-patterns-cdc-outbox` | `feat/triad-runner-patterns-cdc-outbox` | parallel agent |
-| `.../triad-worktrees/triad-runner-patterns-saga-eos` | `feat/triad-runner-patterns-saga-eos` | **`/loop`** (self-paced TDD) |
-| `.../triad-worktrees/triad-runner-engine` | `feat/triad-runner-engine` | **`/loop`** (self-paced TDD) |
-| `.../triad-worktrees/triad-sdk` | `feat/triad-sdk` | parallel agent |
-| `.../triad-worktrees/triad-cli` | `feat/triad-cli` | parallel agent |
-| `.../triad-worktrees/tests` | `feat/tests` | parallel agent |
+| `.../triad-worktrees/triad-proto` | `feat/triad-proto` | parallel agent *(merged)* |
+| `.../triad-worktrees/triad-core` | `feat/triad-core` | parallel agent *(merged)* |
+| `.../triad-worktrees/triad-runner-backends` | `feat/triad-runner-backends` | parallel agent *(merged)* |
+| `.../triad-worktrees/triad-runner-patterns-cdc-outbox` | `feat/triad-runner-patterns-cdc-outbox` | parallel agent *(merged)* |
+| `.../triad-worktrees/triad-runner-patterns-saga-eos` | `feat/triad-runner-patterns-saga-eos` | **`/loop`** *(merged)* |
+| `.../triad-worktrees/triad-runner-engine` | `feat/triad-runner-engine` | **`/loop`** *(merged)* |
+| `.../triad-worktrees/triad-sdk` | `feat/triad-sdk` | parallel agent *(merged)* |
+| `.../triad-worktrees/triad-cli` | `feat/triad-cli` | parallel agent *(merged)* |
+| `.../triad-worktrees/tests` | `feat/tests` | parallel agent *(merged)* |
+| `.../triad-worktrees/triad-py` | `feat/triad-py` | parallel agent (Phase 10) |
+| `.../triad-worktrees/triad-tui` | `feat/triad-tui` | parallel agent (Phase 11) |
 
 ---
 
@@ -38,6 +40,11 @@ Worktrees base: `/home/jreuben1/Code/triad-worktrees/` — prompts relative to r
 | 3 | phase3-sdk | triad-sdk | /tmp/triad-target-sdk | scripts/prompts/triad-sdk.md | no |
 | 3 | phase3-cli | triad-cli | /tmp/triad-target-cli | scripts/prompts/triad-cli.md | no |
 | 4 | phase4-tests | tests | /tmp/triad-target-tests | scripts/prompts/tests.md | no |
+| 5 | phase5-py | triad-py | /tmp/triad-target-py | scripts/prompts/triad-py.md | no |
+| 5 | phase5-tui | triad-tui | /tmp/triad-target-tui | scripts/prompts/triad-tui.md | no |
+
+**Phase 9 note:** No new worktree. Run the integration gate commands directly in the main repo.
+The `status` tab can be used as the Phase 9 execution environment.
 
 A `status` tab (interactive `claude` session) is always appended — run `/project-status` in it to check progress.
 
@@ -243,6 +250,10 @@ Full stub-implementation audit and wire-up:
 
 ## Phase 9 — Final integration gate
 
+**Note:** Phase 9 runs directly in the main repo (no new worktree). Run all commands in `/home/jreuben1/Code/triad` with `export CARGO_TARGET_DIR=/tmp/triad-target-main`.
+
+- [ ] `cargo deny check` — license compliance + CVE advisories (`deny.toml` scaffold included)
+- [ ] `cargo machete` — unused dependency detection (`cargo install cargo-machete`)
 - [ ] `cargo fmt --check` clean
 - [ ] `cargo clippy --workspace -- -D warnings` clean
 - [ ] `cargo check --workspace` clean
@@ -250,7 +261,8 @@ Full stub-implementation audit and wire-up:
 - [ ] `cargo nextest run --workspace --features integration` — all integration tests pass
 - [ ] `cargo llvm-cov nextest --workspace --fail-under-lines 80` — coverage ≥ 80% overall
 - [ ] `cargo llvm-cov nextest --package triad-runner --fail-under-lines 90` — runner ≥ 90%
-- [ ] Merge all feature branches to `main`
+- [ ] `cargo semver-checks` — establishes v0.1.0 API compatibility baseline (`cargo install cargo-semver-checks`)
+- [ ] Stale worktree cleanup: `git worktree remove --force` all merged worktrees + `git branch -D`
 - [ ] Tag `v0.1.0`
 
 ---

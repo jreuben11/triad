@@ -33,6 +33,23 @@ cargo llvm-cov nextest -p triad-runner --fail-under-lines 90     # runner covera
 
 Install `cargo-nextest` if not present: `cargo install cargo-nextest cargo-llvm-cov`
 
+## Security and quality tooling
+
+```bash
+cargo deny check                    # license compliance + CVE advisories (deny.toml config)
+cargo machete                       # unused dependency detection
+cargo semver-checks                 # API compatibility check (run before every version bump)
+```
+
+Install once: `cargo install cargo-deny cargo-machete cargo-semver-checks`
+
+To run the async task inspector (requires `--features tokio-console`):
+```bash
+cargo run --features tokio-console  # start runner with console-subscriber enabled
+tokio-console                       # connect inspector in a separate terminal
+```
+Install tokio-console: `cargo install tokio-console`
+
 ## Rust best practices for this project
 
 ### Error handling
@@ -236,3 +253,35 @@ from previous sessions. Apply them immediately — do not rediscover known pitfa
 
 4. **Commit all three files together** (`project-plan.md`, `CLAUDE.md`,
    `claude-best-practices-learned.md`) with the implementation commit.
+
+## End-of-phase introspective review (mandatory)
+
+At the end of every phase — before tagging or opening the next phase's PR — run this review.
+It takes 10–15 minutes and prevents the project from accruing invisible technical debt.
+
+### Process review
+- Does `/project-status` show a clear, phase-grouped TODO list? If the skill output was confusing, improve `~/.claude/commands/project-status.md`.
+- Are all new phases added to the **Agent Launch Configuration** table in `project-plan.md`?
+- Do all worktree `.claude/settings.json` Stop hooks still point to a valid tab name (`status`)?
+- Are any merged branches still present as local worktrees? Run `git worktree list` and clean up.
+- Did every agent commit the three-file discipline (`project-plan.md` + `CLAUDE.md` + `claude-best-practices-learned.md`)? Check with `git log --name-only main..HEAD` per worktree.
+
+### Design doc review
+- Does `triad-system-design.md` still accurately describe the implementation? Flag any sections that use Go terminology, pseudocode, or describe unimplemented patterns without a "v0.x.0 scope" note.
+- Are newly implemented patterns added to §13 and marked in the v0.1.0 status block?
+- Are any §14 open questions now resolved? Update with the decision taken.
+- Do §15.3 metric names match constants in `triad-core/src/metrics.rs`?
+
+### Codebase review
+- Run `cargo machete` — remove any unused dependencies that accumulated.
+- Run `cargo deny check` — verify no new CVEs or license violations.
+- Run `cargo semver-checks` — verify no accidental public API breaks (before any version bump).
+- Are there any `todo!()`, `unimplemented!()`, or `bail!("not implemented")` stubs remaining? `grep -rn 'todo!\|unimplemented!\|not implemented'`
+- Check `cargo clippy --workspace -- -D warnings` for new lint categories that emerged.
+
+### Tooling review
+- Are the newly added crates (criterion, proptest, insta, console-subscriber) being used? If a crate was added but no code uses it yet, add a placeholder benchmark / property test or remove the dep.
+- Would any marketplace plugin (`/ultrareview`, `/schedule`) improve the next phase's workflow?
+
+### Output
+Capture non-obvious findings in `claude-best-practices-learned.md` and update `devflow-improvement-checklist.md` with any new action items discovered.

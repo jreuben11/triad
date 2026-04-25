@@ -77,10 +77,14 @@ hex     = { workspace = true }
 kube        = { workspace = true, optional = true }
 k8s-openapi = { workspace = true, optional = true }
 
+# Async task inspector (tokio-console) — optional, enable with --features tokio-console
+console-subscriber = { workspace = true, optional = true }
+
 [features]
-default     = []
-kubernetes  = ["kube", "k8s-openapi"]   # enables K8s Lease leader election
-integration = []                         # enables testcontainers integration tests
+default        = []
+kubernetes     = ["kube", "k8s-openapi"]        # enables K8s Lease leader election
+integration    = []                              # enables testcontainers integration tests
+tokio-console  = ["console-subscriber"]         # enables tokio-console task inspector
 
 [[test]]
 name              = "integration"

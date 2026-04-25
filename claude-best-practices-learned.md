@@ -151,6 +151,24 @@ Never force-merge or use `--no-ff` without explicit user request.
 
 ## Project Plan as Source of Truth
 
+### Stale worktrees linger after squash-merge — clean up before tagging
+**Rule:** `gh pr merge --squash --delete-branch` deletes the *remote* branch but leaves the local
+worktree directory and local branch intact. After a successful merge, explicitly remove:
+```bash
+git worktree remove --force /path/to/<worktree>
+git branch -D <branch>
+```
+Run `git worktree list` to audit. A stale worktree is harmless but pollutes `/project-status` output
+(it still appears in the list with no commits ahead of main, classified as `scaffold`).
+
+### Agent Launch Config table must be updated for new phases
+**Rule:** `/project-status` step 10 (auto-launch) and `/zellij-launch phase N` both read the
+**Agent Launch Configuration** table in `project-plan.md`. If a new phase's worktree is not in
+the table, neither skill can create its tabs automatically.
+**Fix:** Before starting a new phase, add its rows to the table. Phases 9 (manual gate),
+10 (`feat/triad-py`), and 11 (`feat/triad-tui`) need entries before their auto-launch works.
+Phase 9 has no new worktree — it runs in the main repo. Add a note in the table rather than a row.
+
 ### Plan checklist drives skill behaviour
 - `not-started` (all `[ ]`): skip testing — no commits to evaluate
 - `in-progress` (some `[x]`): run tests, report results, do not auto-merge
@@ -299,6 +317,15 @@ between each pair; without it, `close-tab` may fire before the tab switch comple
 if found, merges via `gh pr merge <branch> --squash --delete-branch` (CI-gated).
 Branches without a PR fall back to the direct `git merge --ff-only` path (legacy/manual).
 **Fix:** Add `Bash(gh pr *)` to the project allowlist so `gh pr list` and `gh pr merge` don't prompt.
+
+### `--delete-branch` fails when branch is checked out in a worktree
+**Rule:** `gh pr merge <branch> --squash --delete-branch` fails with
+"failed to delete local branch: used by worktree" when the branch is still active in a worktree.
+**Fix:** Omit `--delete-branch` from the merge command. Clean up the worktree manually after merge:
+```bash
+git worktree remove --force /path/to/worktree
+git branch -D <branch>
+```
 
 ### Always squash-merge feature branches — never --merge
 **Rule:** Use `gh pr merge <branch> --squash --delete-branch`, never `--merge`.

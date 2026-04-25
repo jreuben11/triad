@@ -346,19 +346,19 @@ stateDiagram-v2
 
 ### 6.2 Pattern Module Lifecycle
 
-Each Pattern module runs as an independent goroutine/thread supervised by the Runner. Failure of one module does not crash others.
+Each Pattern module runs as an independent tokio async task supervised by the Runner via `JoinSet`. Failure of one module does not crash others.
 
 ```mermaid
 flowchart TD
-    Runner[Runner Supervisor]
-    Runner --> CDC_M[CDC Module\ngoroutine]
-    Runner --> Outbox_M[Outbox Relay\ngoroutine]
-    Runner --> Inbox_M[Inbox Consumer\ngoroutine]
-    Runner --> Saga_M[Saga Orchestrator\ngoroutine]
-    Runner --> Cache_M[Cache Sync\ngoroutine]
-    Runner --> Flag_M[Flag Distributor\ngoroutine]
-    Runner --> Webhook_M[Webhook Dispatcher\npool]
-    Runner --> FeatureStore_M[Feature Store Pipeline\ngoroutine]
+    Runner[Runner Supervisor\nJoinSet]
+    Runner --> CDC_M[CDC Module\ntokio task]
+    Runner --> Outbox_M[Outbox Relay\ntokio task]
+    Runner --> Inbox_M[Inbox Consumer\ntokio task]
+    Runner --> Saga_M[Saga Orchestrator\ntokio task]
+    Runner --> Cache_M[Cache Sync\ntokio task]
+    Runner --> Flag_M[Flag Distributor\ntokio task]
+    Runner --> Webhook_M[Webhook Dispatcher\ntask pool]
+    Runner --> FeatureStore_M[Feature Store Pipeline\ntokio task]
 
     CDC_M -->|crash| Runner
     Runner -->|restart with backoff| CDC_M
@@ -605,7 +605,7 @@ sequenceDiagram
         Runner->>Runner: open traffic immediately\nresidual cache misses populate Redis on first read
     end
 
-    Runner->>Runner: start all Pattern module goroutines
+    Runner->>Runner: spawn all Pattern module tokio tasks
     Runner->>Health: begin continuous health polling loop
     Runner-->>Runner: RUNNING
 ```
@@ -966,7 +966,7 @@ Triad supports three first-class deployment modes. The mode is selected at start
 | Lifecycle owner | Application | systemd / OS | K8s Deployment + PDB |
 | Leader election | Single instance (no election) | File lock / single process | `coordination.k8s.io/v1 Lease` |
 | Restart on crash | App's own restart logic | `systemd Restart=on-failure` | K8s pod restart policy |
-| Horizontal scale | No (goroutines scale vertically) | No (single process) | Yes — HPA on Kafka lag |
+| Horizontal scale | No (tokio tasks scale vertically) | No (single process) | Yes — HPA on Kafka lag |
 | Admin API | Embedded on app port | `localhost:8080` (default) | ClusterIP service |
 | Config source | `triad.yaml` / env vars | `triad.yaml` / env vars | ConfigMap + Secret |
 | Health probes | Exported via app's own server | `/health/{live,ready,started}` | `/health/{live,ready,started}` |
@@ -976,51 +976,48 @@ Triad supports three first-class deployment modes. The mode is selected at start
 
 ### 12.1 Mode 1 — In-Process SDK
 
-The Triad engine runs as goroutines inside the host application process. No network hop between application code and the Triad engine. The application is responsible for all lifecycle management.
+The Triad engine runs as tokio async tasks inside the host application process. No network hop between application code and the Triad engine. The application is responsible for all lifecycle management.
 
 **API surface:**
 
-```go
+```rust
 // Initialise and start all configured patterns inside the calling process.
-instance, err := triad.Start(ctx, triad.MustLoad("triad.yaml"))
-if err != nil {
-    log.Fatal(err)
-}
-defer instance.Shutdown(shutdownCtx) // blocks until drain completes or ctx expires
+let instance = TriadInstance::start(TriadConfig::load("triad.yaml")?).await?;
+// instance.shutdown() blocks until drain completes or the token is cancelled
 ```
 
 **Lifecycle contract:**
-- `Triad.Start` returns after all backends are connected and cold-start is complete.
-- `instance.Shutdown(ctx)` triggers the graceful drain sequence (§20.3) and blocks until complete.
+- `TriadInstance::start` returns after all backends are connected and cold-start is complete.
+- `instance.shutdown()` triggers the graceful drain sequence (§20.3) and blocks until complete.
 - If the application process crashes, Triad crashes with it. Durability relies on PG replication slot persistence, Kafka `__consumer_offsets`, and outbox rows (§20.1).
-- SIGTERM handling is the application's responsibility. The application must call `instance.Shutdown` in its signal handler. A minimal correct signal handler:
+- SIGTERM handling is the application's responsibility. The application must call `instance.shutdown()` from its signal handler. A minimal correct signal handler using `tokio::signal`:
 
-```go
-quit := make(chan os.Signal, 1)
-signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
-go func() {
-    <-quit
-    shutdownCtx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
-    defer cancel()
-    if err := instance.Shutdown(shutdownCtx); err != nil {
-        log.Printf("triad drain error: %v", err)
-    }
-}()
+```rust
+let mut sigterm = signal(SignalKind::terminate())?;
+let mut sigint  = signal(SignalKind::interrupt())?;
+tokio::select! {
+    _ = sigterm.recv() => {},
+    _ = sigint.recv()  => {},
+}
+tokio::time::timeout(
+    Duration::from_secs(35),
+    instance.shutdown(),
+).await.unwrap_or_else(|_| warn!("triad: drain timed out"));
 ```
 
-If the application exits without calling `instance.Shutdown`, Triad logs a warning (`triad: instance not shut down cleanly`) at ERROR level. In-flight messages may be redelivered after restart — inbox dedup handles duplicates, but uncommitted Kafka producer transactions are aborted by the broker after the transaction timeout expires.
+If the application exits without calling `instance.shutdown()`, Triad logs an error (`triad: instance not shut down cleanly`). In-flight messages may be redelivered after restart — inbox dedup handles duplicates, but uncommitted Kafka producer transactions are aborted by the broker after the transaction timeout expires.
 
 ```mermaid
 flowchart TD
     subgraph Process["Application Process (single binary)"]
         App["Application Code"]
-        SDK["triad.Start()"]
-        CDC["cdc goroutine"]
-        Outbox["outbox goroutine"]
-        Inbox["inbox goroutine"]
-        Saga["saga goroutine"]
+        SDK["TriadInstance::start()"]
+        CDC["cdc tokio task"]
+        Outbox["outbox tokio task"]
+        Inbox["inbox tokio task"]
+        Saga["saga tokio task"]
         Admin["Admin HTTP\n(optional, app port)"]
-        App -->|"Triad.Start(ctx, cfg)"| SDK
+        App -->|"TriadInstance::start(cfg)"| SDK
         SDK --> CDC
         SDK --> Outbox
         SDK --> Inbox
@@ -1050,7 +1047,7 @@ A single `triad` binary that can act as both a long-running server and a CLI man
 | `triad server` | Start the Triad runner as a foreground process |
 | `triad validate` | Parse and validate `triad.yaml`; print all startup checks |
 | `triad migrate` | Apply DB schema migrations (outbox, inbox, saga, checkpoint tables) |
-| `triad version` | Print build version, Go version, and config schema version |
+| `triad version` | Print build version, Rust version, and config schema version |
 
 *Admin-client commands* (require a running `triad server`; connect to `TRIAD_ADMIN_URL`, default `http://localhost:8080`):
 
@@ -1104,7 +1101,7 @@ flowchart LR
         CLI["triad &lt;admin-cmd&gt;\n(CLI process)"]
         Server["triad server\n(long-running process)"]
         AdminAPI["Admin HTTP\n:8080"]
-        Engine["Triad Engine\ngoroutines"]
+        Engine["Triad Engine\ntokio tasks"]
         CLI -->|"HTTP → TRIAD_ADMIN_URL"| AdminAPI
         AdminAPI --- Engine
         Server --> AdminAPI
@@ -1437,6 +1434,14 @@ A full map of every golden-triangle pattern to the Triad module that implements 
 | Webhook delivery (§9.8) | `webhook` | Kafka | HTTP + PG log + Redis CB | at-least-once + dedup |
 | ML feature store (§9.9) | `feature_store` | External topic or PG table → Redis | Redis online + PG offline | at-least-once |
 
+### v0.1.0 Implementation Status
+
+**Implemented in v0.1.0:** `cdc`, `outbox`, `inbox`, `aggregate` (SDK), `cache` (all four modes), `rate_limit`, `dlq`, `exactly_once`, `idempotency`, `cold_start` (Strategy C only — dual-read; see §8.2), `feature_flag`, `webhook`, `feature_store`, `saga`, built-in health/backpressure/circuit-breakers.
+
+**Deferred to v0.2.0 (Stage 2):** `lock`, `session`, `enrich`, `state_store`, `fanout`, `cqrs`, `pipeline`, `tenant`, `search_index`, `redis_stream`, `replication` (multi-region). Schema Registry integration (§5.4) is also deferred — see §14 open question #4.
+
+**Cold-start strategies:** Strategy C (dual-read / lazy warm) is the only strategy implemented in v0.1.0. Strategies A (PG snapshot) and B (Kafka replay) are designed but not yet built.
+
 ---
 
 ## 14. Design Trade-offs and Open Questions
@@ -1470,13 +1475,13 @@ quadrantChart
 
 **Key open questions for any concrete implementation:**
 
-1. **Language choice for the Runner core:** Go gives goroutines + low GC pauses; Rust gives zero-cost abstractions; JVM gives the richest Kafka/PG ecosystem. A Go core with language-specific SDKs (calling the Runner via gRPC) is the most pragmatic choice.
+1. **Language choice for the Runner core:** Rust was chosen — zero-cost async with tokio, no GC pauses, and the rich `rdkafka` / `sqlx` / `deadpool-redis` ecosystem covers all three backends. The SDK is a Rust library crate; Python bindings (Phase 10) are exposed via PyO3/maturin.
 
 2. **WAL replication slot ownership:** In the centralised topology, only one Runner can own a replication slot. Leader election (via PostgreSQL advisory locks or Redis `SET NX`) is required. In the sidecar topology, each service owns its own slot — slot proliferation must be monitored.
 
 3. **Saga state consistency:** The design stores in-flight saga state in Redis (fast) and commits the final outcome to PostgreSQL (durable). If Redis fails mid-saga, the orchestrator must replay from the last Kafka event in the saga's event sequence to reconstruct state. This requires the saga's Kafka events to be a complete journal — an event sourcing constraint on the Saga module itself.
 
-4. **Schema Registry coupling:** The CDC module is tightly coupled to a Schema Registry for encoding. Teams not running Confluent Schema Registry must either run an OSS alternative (Apicurio Registry) or use JSON with schema evolution handled at the application level.
+4. **Schema Registry coupling:** The CDC module is tightly coupled to a Schema Registry for encoding. Teams not running Confluent Schema Registry must either run an OSS alternative (Apicurio Registry) or use JSON with schema evolution handled at the application level. **v0.1.0 decision:** Schema Registry integration is deferred. The `ChangeEvent` is serialized with `serde_json` without schema validation. Post-v0.1.0, use the `apache_avro` crate and wire `SchemaRegistryConverter` around the CDC encoder/decoder.
 
 5. **Multi-region write conflicts:** The design acknowledges that active-active PostgreSQL requires application-level conflict resolution. Triad can provide the replication infrastructure but cannot define the business-level merge logic — that must be supplied as a plugin.
 
@@ -1512,6 +1517,10 @@ Every metric carries a baseline label set. Subsystem-specific labels are additiv
 High-cardinality labels (e.g., `endpoint_id` for webhooks, `subscription_id`) are isolated to dedicated metric families with explicit allow-lists configured in `triad.yaml` under `observability.metrics.cardinality_limits`.
 
 ### 15.3 Full Metrics Inventory
+
+> **Implementation cross-reference:** Metric name constants are defined in `crates/triad-core/src/metrics.rs`.
+> Every name in this table must have a matching constant there. Phase 8b added counter assertions
+> for outbox, eos, saga, and webhook patterns; remaining patterns are tracked by name only.
 
 | Metric | Type | Key Additional Labels | Description |
 |--------|------|----------------------|-------------|
