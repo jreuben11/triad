@@ -1,7 +1,4 @@
 """Tests for PySagaBuilder and related classes."""
-import sys
-sys.path.insert(0, "crates/triad-py/python")
-
 import pytest
 from triad import SagaBuilder, SagaConfig, SagaStepConfig
 

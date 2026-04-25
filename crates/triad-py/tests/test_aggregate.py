@@ -1,7 +1,4 @@
 """Tests for PyAggregateRoot and Aggregate ABC."""
-import sys
-sys.path.insert(0, "crates/triad-py/python")
-
 import pytest
 from triad import AggregateRoot, Aggregate
 

@@ -1,8 +1,4 @@
 """Tests for PyFlagEvaluator (in-memory mode only — no real DB needed)."""
-import sys
-sys.path.insert(0, "crates/triad-py/python")
-
-import asyncio
 import pytest
 from triad import FlagEvaluator
 

@@ -1,7 +1,4 @@
 """Tests for PyIdempotencyKey, PyIdempotencyRecord, and PyIdempotencyStore."""
-import sys
-sys.path.insert(0, "crates/triad-py/python")
-
 import pytest
 from triad import IdempotencyKey, IdempotencyRecord, IdempotencyStore, lookup, store_result
 
