@@ -144,9 +144,23 @@ impl AdminServer {
         let listener = TcpListener::bind(&addr).await?;
         info!(addr = %addr, "admin HTTP server listening");
 
-        axum::serve(listener, router)
-            .with_graceful_shutdown(async move { cancel.cancelled().await })
-            .await?;
+        let grpc_port = self.port + 1;
+        let grpc_addr: std::net::SocketAddr = format!("0.0.0.0:{grpc_port}").parse()?;
+        let grpc_svc = crate::admin_grpc::grpc_service(self.state.clone());
+        info!(addr = %grpc_addr, "admin gRPC server listening");
+
+        let cancel_http = cancel.clone();
+        let cancel_grpc = cancel.clone();
+
+        let http_fut = axum::serve(listener, router)
+            .with_graceful_shutdown(async move { cancel_http.cancelled().await });
+        let grpc_fut = tonic::transport::Server::builder()
+            .add_service(grpc_svc)
+            .serve_with_shutdown(grpc_addr, async move { cancel_grpc.cancelled().await });
+
+        let (http_result, grpc_result) = tokio::join!(http_fut, grpc_fut);
+        http_result?;
+        grpc_result?;
         Ok(())
     }
 }
@@ -276,7 +290,7 @@ struct ErrorResponse {
 
 // ── Backend health helpers ─────────────────────────────────────────────────────
 
-async fn check_pg_health(pool: &Option<sqlx::PgPool>) -> String {
+pub(crate) async fn check_pg_health(pool: &Option<sqlx::PgPool>) -> String {
     match pool {
         None => "unconfigured".to_string(),
         Some(p) => {
@@ -293,7 +307,7 @@ async fn check_pg_health(pool: &Option<sqlx::PgPool>) -> String {
     }
 }
 
-async fn check_kafka_health(brokers: Option<String>) -> String {
+pub(crate) async fn check_kafka_health(brokers: Option<String>) -> String {
     let Some(b) = brokers else {
         return "unconfigured".to_string();
     };
@@ -322,7 +336,7 @@ async fn check_kafka_health(brokers: Option<String>) -> String {
     }
 }
 
-async fn check_redis_health(url: Option<String>) -> String {
+pub(crate) async fn check_redis_health(url: Option<String>) -> String {
     let Some(u) = url else {
         return "unconfigured".to_string();
     };

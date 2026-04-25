@@ -611,3 +611,25 @@ async fn my_method(slf: Py<Self>) -> PyResult<()> {
 if you pass `--manifest-path path/to/pyproject.toml`. maturin expects to be run from the
 directory that contains `pyproject.toml`.
 **Fix:** `cd crates/triad-py && maturin develop --uv` (or use the directory form).
+
+### tonic 0.12: `google.protobuf.Empty` → `()` in generated trait signatures
+**Rule:** In tonic 0.12 generated code, `google.protobuf.Empty` maps to `()` in method
+signatures, not `prost_types::Empty`. Implementations must use `#[tonic::async_trait]`.
+**Fix:** Trait implementations: `async fn live(&self, _: Request<()>) -> Result<Response<LiveResponse>, Status>`
+
+### tonic 0.12: gRPC + HTTP concurrent server with `tokio::join!`
+**Rule:** Running tonic gRPC and axum HTTP servers concurrently uses `tokio::join!` since both
+return `Result` types but with different error types (`std::io::Error` vs `tonic::transport::Error`).
+**Fix:**
+```rust
+let (http_result, grpc_result) = tokio::join!(http_fut, grpc_fut);
+http_result?;
+grpc_result?;
+```
+
+### TriadConfig has no Default — load from YAML string for tests
+**Rule:** `triad_core::config::TriadConfig` has no `Default` impl. Unit tests that need an
+instance must write a minimal YAML to a temp file and call `TriadConfig::load()`. The minimal
+valid YAML is in `crates/triad-core/src/config.rs` as `MINIMAL_YAML`.
+**Fix:** Copy the `MINIMAL_YAML` constant from config.rs tests into your test, write to
+`std::env::temp_dir().join("...")`, then call `TriadConfig::load(path)`.

@@ -24,9 +24,7 @@ pub async fn migrate(args: MigrateArgs) -> Result<()> {
     };
 
     println!("Applying migrations to {pg_url} ...");
-    run_migrations(&pg_url)
-        .await
-        .context("migration failed")?;
+    run_migrations(&pg_url).await.context("migration failed")?;
     println!("Migrations applied successfully.");
     Ok(())
 }

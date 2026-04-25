@@ -22,9 +22,7 @@ ignored = [
     "opentelemetry_sdk",   # OTel SDK setup in runner (Phase 10)
     "thiserror",           # used in pattern error types via derive macro; machete misses derives
     "tokio-stream",        # used in CDC WAL stream processing
-    "tonic",               # gRPC admin service implementation (Phase 10)
     "tracing-opentelemetry", # bridges tracing spans to OTel (Phase 10 init)
-    "triad-proto",         # gRPC service definitions (Phase 10)
 ]
 
 [dependencies]

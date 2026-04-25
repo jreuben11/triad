@@ -302,7 +302,7 @@ Full stub-implementation audit and wire-up:
 - [x] `triad migrate` CLI subcommand — sqlx migration runner
 - [x] `triad version` CLI subcommand — print build info + config schema version
 - [x] `triad lag` CLI subcommand — Kafka consumer group lag (admin HTTP endpoint `GET /lag` already implemented)
-- [ ] gRPC admin server (`admin/grpc.rs`) — `triad-proto` definitions are ready; wire tonic service
+- [x] gRPC admin server (`admin_grpc.rs`) — `TriadAdminService` implements all 14 RPCs; runs concurrently with HTTP on port+1
 
 ---
 

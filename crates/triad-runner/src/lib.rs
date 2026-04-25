@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod admin_grpc;
 pub mod backends;
 pub mod checkpoint;
 pub mod engine;

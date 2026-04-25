@@ -181,3 +181,10 @@ pub async fn pipeline(cmd: PipelineCommand) -> Result<()> {
     }
     Ok(())
 }
+
+pub async fn lag() -> Result<()> {
+    let client = AdminClient::from_env();
+    let result: Value = client.get("/lag").await?;
+    println!("{}", serde_json::to_string_pretty(&result)?);
+    Ok(())
+}
