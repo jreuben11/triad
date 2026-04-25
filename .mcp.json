@@ -7,6 +7,14 @@
         "@modelcontextprotocol/server-postgres",
         "${TRIAD_DEV_DB_URL:-postgresql://localhost/triad_dev}"
       ]
+    },
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@github/github-mcp-server"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
     }
   }
 }

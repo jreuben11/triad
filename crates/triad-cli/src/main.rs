@@ -35,6 +35,8 @@ pub enum Command {
     /// Configuration utilities
     #[command(subcommand)]
     Config(commands::config::ConfigCommand),
+    /// Launch the terminal dashboard (requires triad-tui binary in PATH)
+    Tui(commands::tui::TuiArgs),
 }
 
 #[tokio::main]
@@ -48,5 +50,6 @@ async fn main() -> Result<()> {
         Command::Dlq(cmd) => commands::admin::dlq(cmd).await,
         Command::Pipeline(cmd) => commands::admin::pipeline(cmd).await,
         Command::Config(cmd) => commands::config::config(cmd),
+        Command::Tui(args) => commands::tui::run_tui(args).await,
     }
 }

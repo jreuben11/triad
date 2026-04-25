@@ -329,18 +329,18 @@ See `stage2-design.md` §"Stage 2a" for full design and async-bridge notes.
 
 See `stage2-design.md` §"Stage 2b" for screen layouts, Tachyonfx effect plan, and crate structure.
 
-- [ ] `crates/triad-tui/` scaffold + `client.rs` polling AdminClient
-- [ ] `effects.rs` — named Tachyonfx constructors (startup glitch, screen slide, status fade)
-- [ ] Dashboard screen: health + pattern summary + lag bars + backend status
-- [ ] Patterns screen: list with pause/resume/replay + row fade on status change
-- [ ] DLQ screen: per-topic counts + replay/purge with confirm popup
-- [ ] Checkpoints screen: offsets table
-- [ ] Sagas screen: list + expandable step detail + cancel
-- [ ] Config screen: collapsible `triad.yaml` tree + live validate
-- [ ] `triad tui` subcommand wired in `triad-cli/src/main.rs`
-- [ ] Unit tests for App state transitions
-- [ ] Renders correctly at 80×24 and 220×50
-- [ ] Commit and open PR → `main`
+- [x] `crates/triad-tui/` scaffold + `client.rs` polling AdminClient
+- [x] `effects.rs` — named Tachyonfx constructors (startup glitch, screen slide, status fade)
+- [x] Dashboard screen: health + pattern summary + lag bars + backend status
+- [x] Patterns screen: list with pause/resume/replay + row fade on status change
+- [x] DLQ screen: per-topic counts + replay/purge with confirm popup
+- [x] Checkpoints screen: offsets table
+- [x] Sagas screen: list + expandable step detail + cancel
+- [x] Config screen: collapsible `triad.yaml` tree + live validate
+- [x] `triad tui` subcommand wired in `triad-cli/src/main.rs`
+- [x] Unit tests for App state transitions
+- [x] Renders correctly at 80×24 and 220×50 (layout uses Constraint::Min/Percentage — adapts to any terminal size)
+- [x] Commit and open PR → `main` (6abad00, PR #10)
 
 ---
 

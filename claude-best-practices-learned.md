@@ -522,3 +522,30 @@ in an async context blocks the tokio runtime.
 pipeline reload (re-read config). These are semantically distinct operations.
 **Fix:** Define four variants: `Pause(String)`, `Resume(String)`, `Replay(String)` for pattern
 replay, and `Reload(String)` for pipeline/config reload.
+
+---
+
+## TUI Crate (triad-tui, Phase 11)
+
+### tachyonfx 0.7 requires ratatui 0.28.1 exactly — not 0.29
+**Rule:** `tachyonfx = "0.7"` depends on `ratatui = "0.28.1"`. If `ratatui = "0.29"` is also
+in workspace.dependencies, cargo resolves two separate ratatui versions in the dep graph.
+`ratatui::style::Color` from 0.29 is a *different type* than `ratatui::style::Color` from
+0.28.1, so `C: Into<Color>` bounds in tachyonfx (using 0.28.1's Color) reject values of
+the 0.29 Color type. Compile errors manifest as trait-bound failures on `fade_from_fg`,
+`slide_in`, etc.
+**Fix:** Set `ratatui = { version = "0.28.1" }` in workspace.dependencies to unify versions.
+Check `cargo tree -p tachyonfx` to confirm what version tachyonfx pulls before choosing.
+
+### tachyonfx: `running()` requires `Shader` trait in scope; `render_effect` requires `EffectRenderer`
+**Rule:** `Effect::running()` is defined on the `Shader` trait. `frame.render_effect(...)` is
+defined on the `EffectRenderer` trait. Both must be imported explicitly.
+**Fix:** Add `use tachyonfx::{Shader, EffectRenderer};` in any module that calls these methods,
+including inside `#[cfg(test)]` modules that assert `effect.running()`.
+
+### Dead-code lints on deserialization-only struct fields: use field-level `#[allow(dead_code)]`
+**Rule:** Structs that are populated via `serde::Deserialize` from API responses often have
+fields that are not read in the UI. Clippy `-D warnings` treats these as dead code.
+**Fix:** Add `#[allow(dead_code)]` to individual unused fields. Avoid `#[allow(dead_code)]`
+on the whole struct — that suppresses legitimate warnings on future fields. Alternatively,
+add `#[allow(dead_code)]` to effect/API constructors that are reserved for future wiring.

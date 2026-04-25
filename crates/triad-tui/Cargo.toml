@@ -1,0 +1,28 @@
+[package]
+name           = "triad-tui"
+description    = "Ratatui terminal dashboard for the triad admin API"
+version.workspace      = true
+edition.workspace      = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+rust-version.workspace = true
+
+[[bin]]
+name = "triad-tui"
+path = "src/main.rs"
+
+[dependencies]
+triad-core   = { path = "../triad-core" }
+ratatui      = { workspace = true }
+tachyonfx    = { workspace = true }
+crossterm    = { workspace = true }
+tokio        = { workspace = true }
+reqwest      = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+clap         = { workspace = true }
+anyhow       = { workspace = true }
+
+[dev-dependencies]
+tokio-test   = { workspace = true }
