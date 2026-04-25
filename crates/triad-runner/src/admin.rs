@@ -39,6 +39,7 @@ pub struct AdminState {
     pub dlq_replayer: Option<Arc<crate::patterns::dlq::DlqReplayer>>,
     pub config_path: Option<String>,
     pub shared_config: Option<Arc<tokio::sync::RwLock<triad_core::config::TriadConfig>>>,
+    pub mode: Option<String>,
 }
 
 impl AdminState {
@@ -54,6 +55,7 @@ impl AdminState {
             dlq_replayer: None,
             config_path: None,
             shared_config: None,
+            mode: None,
         }
     }
 
@@ -97,6 +99,11 @@ impl AdminState {
         cfg: Arc<tokio::sync::RwLock<triad_core::config::TriadConfig>>,
     ) -> Self {
         self.shared_config = Some(cfg);
+        self
+    }
+
+    pub fn with_mode(mut self, mode: impl Into<String>) -> Self {
+        self.mode = Some(mode.into());
         self
     }
 }
@@ -182,6 +189,7 @@ pub fn admin_router(state: AdminState) -> Router {
         .route("/patterns/:name/replay", post(replay_pattern))
         // Operational
         .route("/lag", get(get_lag))
+        .route("/dlq", get(list_dlq_topics))
         .route("/dlq/:topic", get(list_dlq))
         .route("/dlq/:topic/replay", post(replay_dlq))
         .route("/dlq/:topic", delete(drop_dlq))
@@ -219,6 +227,8 @@ struct ReadyResponse {
     cold_start_complete: bool,
     drain_mode: bool,
     leader: bool,
+    uptime_secs: u64,
+    mode: String,
 }
 
 #[derive(Serialize)]
@@ -405,6 +415,11 @@ async fn ready(State(state): State<AdminState>) -> impl IntoResponse {
         cold_start_complete: true,
         drain_mode: false,
         leader: true,
+        uptime_secs: state.started_at.elapsed().as_secs(),
+        mode: state
+            .mode
+            .clone()
+            .unwrap_or_else(|| "standalone".to_string()),
     })
 }
 
@@ -451,10 +466,21 @@ async fn pause_pattern(
     State(state): State<AdminState>,
 ) -> impl IntoResponse {
     info!(pattern = %name, "pause requested");
+    let health = state.module_health.read().await;
+    if !health.contains_key(&name) {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: format!("pattern '{name}' not found"),
+            }),
+        )
+            .into_response();
+    }
+    drop(health);
     if let Some(tx) = &state.control_tx {
         let _ = tx.try_send(PatternControl::Pause(name));
     }
-    StatusCode::ACCEPTED
+    StatusCode::ACCEPTED.into_response()
 }
 
 async fn resume_pattern(
@@ -462,10 +488,21 @@ async fn resume_pattern(
     State(state): State<AdminState>,
 ) -> impl IntoResponse {
     info!(pattern = %name, "resume requested");
+    let health = state.module_health.read().await;
+    if !health.contains_key(&name) {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: format!("pattern '{name}' not found"),
+            }),
+        )
+            .into_response();
+    }
+    drop(health);
     if let Some(tx) = &state.control_tx {
         let _ = tx.try_send(PatternControl::Resume(name));
     }
-    StatusCode::ACCEPTED
+    StatusCode::ACCEPTED.into_response()
 }
 
 async fn replay_pattern(
@@ -526,6 +563,10 @@ async fn get_lag(State(state): State<AdminState>) -> impl IntoResponse {
     .unwrap_or_default();
 
     Json(entries).into_response()
+}
+
+async fn list_dlq_topics() -> impl IntoResponse {
+    Json(Vec::<DlqEntry>::new())
 }
 
 async fn list_dlq(Path(topic): Path<String>) -> impl IntoResponse {
@@ -840,6 +881,24 @@ mod tests {
         AdminState::new()
     }
 
+    async fn test_state_with_pattern(name: &str) -> AdminState {
+        let state = AdminState::new();
+        state
+            .module_health
+            .write()
+            .await
+            .insert(
+                name.to_string(),
+                triad_core::types::ModuleHealth {
+                    state: triad_core::types::ModuleState::Running,
+                    lag: None,
+                    in_flight: None,
+                    last_error: None,
+                },
+            );
+        state
+    }
+
     async fn get_json(router: Router, path: &str) -> (StatusCode, serde_json::Value) {
         let req = Request::builder().uri(path).body(Body::empty()).unwrap();
         let resp = router.oneshot(req).await.unwrap();
@@ -962,16 +1021,32 @@ mod tests {
 
     #[tokio::test]
     async fn test_pause_pattern_returns_accepted() {
-        let router = admin_router(test_state());
+        let state = test_state_with_pattern("test-pattern").await;
+        let router = admin_router(state);
         let status = post_status(router, "/patterns/test-pattern/pause").await;
         assert_eq!(status, StatusCode::ACCEPTED);
     }
 
     #[tokio::test]
-    async fn test_resume_pattern_returns_accepted() {
+    async fn test_pause_pattern_unknown_returns_not_found() {
         let router = admin_router(test_state());
+        let status = post_status(router, "/patterns/nonexistent/pause").await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_resume_pattern_returns_accepted() {
+        let state = test_state_with_pattern("test-pattern").await;
+        let router = admin_router(state);
         let status = post_status(router, "/patterns/test-pattern/resume").await;
         assert_eq!(status, StatusCode::ACCEPTED);
+    }
+
+    #[tokio::test]
+    async fn test_resume_pattern_unknown_returns_not_found() {
+        let router = admin_router(test_state());
+        let status = post_status(router, "/patterns/nonexistent/resume").await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

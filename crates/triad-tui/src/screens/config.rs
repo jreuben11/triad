@@ -75,7 +75,7 @@ fn render_config_tree(
                 .borders(Borders::ALL)
                 .title("CONFIG  triad.yaml"),
         )
-        .scroll((scroll, 0))
+        .scroll((scroll.min(10_000), 0))
         .wrap(Wrap { trim: false });
     frame.render_widget(p, area);
 }

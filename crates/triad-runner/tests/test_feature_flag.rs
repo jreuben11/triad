@@ -32,8 +32,8 @@ async fn test_feature_flag_created_in_pg_appears_in_redis() {
 
     // Insert flag in PG.
     sqlx::query(
-        "INSERT INTO triad.feature_flags (name, enabled, rollout_pct, config)
-         VALUES ('dark-mode', true, 50, '{\"description\":\"dark mode\"}')",
+        "INSERT INTO triad_feature_flags (name, enabled, rollout_percentage)
+         VALUES ('dark-mode', true, 50)",
     )
     .execute(&pg_pool)
     .await
@@ -42,8 +42,8 @@ async fn test_feature_flag_created_in_pg_appears_in_redis() {
     // Simulate hot-reload: poll PG and push to Redis within 5s window.
     let deadline = Duration::from_secs(5);
     timeout(deadline, async {
-        let flags: Vec<(String, bool, i32)> =
-            sqlx::query_as("SELECT name, enabled, rollout_pct FROM triad.feature_flags")
+        let flags: Vec<(String, bool, i16)> =
+            sqlx::query_as("SELECT name, enabled, rollout_percentage FROM triad_feature_flags")
                 .fetch_all(&pg_pool)
                 .await
                 .expect("SELECT flags failed");
@@ -54,7 +54,7 @@ async fn test_feature_flag_created_in_pg_appears_in_redis() {
                 .arg(format!("triad:flag:{name}"))
                 .arg("enabled")
                 .arg(enabled.to_string())
-                .arg("rollout_pct")
+                .arg("rollout_percentage")
                 .arg(pct.to_string())
                 .query_async::<i64>(&mut conn)
                 .await
@@ -77,10 +77,10 @@ async fn test_feature_flag_created_in_pg_appears_in_redis() {
 
     let rollout: String = redis::cmd("HGET")
         .arg("triad:flag:dark-mode")
-        .arg("rollout_pct")
+        .arg("rollout_percentage")
         .query_async(&mut conn)
         .await
-        .expect("HGET rollout_pct failed");
+        .expect("HGET rollout_percentage failed");
 
     assert_eq!(rollout, "50");
 }
@@ -93,15 +93,15 @@ async fn test_feature_flag_rollout_percentage_evaluation() {
         .expect("connect failed");
 
     sqlx::query(
-        "INSERT INTO triad.feature_flags (name, enabled, rollout_pct)
+        "INSERT INTO triad_feature_flags (name, enabled, rollout_percentage)
          VALUES ('gradual-rollout', true, 25)",
     )
     .execute(&pool)
     .await
     .expect("INSERT failed");
 
-    let (enabled, pct): (bool, i32) = sqlx::query_as(
-        "SELECT enabled, rollout_pct FROM triad.feature_flags WHERE name = 'gradual-rollout'",
+    let (enabled, pct): (bool, i16) = sqlx::query_as(
+        "SELECT enabled, rollout_percentage FROM triad_feature_flags WHERE name = 'gradual-rollout'",
     )
     .fetch_one(&pool)
     .await
@@ -110,13 +110,13 @@ async fn test_feature_flag_rollout_percentage_evaluation() {
     assert!(enabled);
     assert_eq!(pct, 25);
 
-    // Rollout bucket: hash(user_id) % 100 < rollout_pct.
+    // Rollout bucket: hash(user_id) % 100 < rollout_percentage.
     let bucket = |user_id: u64| -> bool {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
         let mut h = DefaultHasher::new();
         user_id.hash(&mut h);
-        (h.finish() % 100) < pct as u64
+        (h.finish() % 100) < pct as u64 // pct is i16
     };
 
     // Sample 100 users and check roughly 25% get the flag.
@@ -135,7 +135,7 @@ async fn test_feature_flag_disabled_flag_not_served() {
         .expect("connect failed");
 
     sqlx::query(
-        "INSERT INTO triad.feature_flags (name, enabled, rollout_pct)
+        "INSERT INTO triad_feature_flags (name, enabled, rollout_percentage)
          VALUES ('disabled-feature', false, 100)",
     )
     .execute(&pool)
@@ -143,7 +143,7 @@ async fn test_feature_flag_disabled_flag_not_served() {
     .expect("INSERT failed");
 
     let (enabled,): (bool,) =
-        sqlx::query_as("SELECT enabled FROM triad.feature_flags WHERE name = 'disabled-feature'")
+        sqlx::query_as("SELECT enabled FROM triad_feature_flags WHERE name = 'disabled-feature'")
             .fetch_one(&pool)
             .await
             .expect("SELECT failed");

@@ -32,3 +32,8 @@ src = ["python"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.20.2",
+]

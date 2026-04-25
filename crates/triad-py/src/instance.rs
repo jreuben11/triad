@@ -138,9 +138,21 @@ impl PyTransaction {
                         .await
                         .map_err(|e| e.to_string())
                         .map(|opt_row| {
-                            opt_row.and_then(|row| {
-                                let val: Result<serde_json::Value, _> = row.try_get(0);
-                                val.ok().map(|v| v.to_string())
+                            opt_row.map(|row| {
+                                // Try common column types in order of likelihood.
+                                if let Ok(s) = row.try_get::<String, _>(0) {
+                                    return s;
+                                }
+                                if let Ok(v) = row.try_get::<serde_json::Value, _>(0) {
+                                    return v.to_string();
+                                }
+                                if let Ok(n) = row.try_get::<i64, _>(0) {
+                                    return n.to_string();
+                                }
+                                if let Ok(b) = row.try_get::<bool, _>(0) {
+                                    return b.to_string();
+                                }
+                                String::new()
                             })
                         })
                 }
@@ -252,6 +264,7 @@ impl PyTriadInstance {
     /// Drain any background tasks and close connections.
     ///
     /// The connection pools close gracefully when all references are dropped.
+    #[pyo3(signature = (timeout_secs = None))]
     async fn shutdown(slf: Py<Self>, timeout_secs: Option<f64>) -> PyResult<()> {
         let _timeout = timeout_secs.unwrap_or(30.0);
         // Connection pools close when the Arcs are dropped.

@@ -36,7 +36,8 @@ pub async fn run(args: RunArgs) -> Result<()> {
         .with_redis_url(redis_url)
         .with_control_tx(control_tx)
         .with_config_path(config_path)
-        .with_shared_config(shared_config);
+        .with_shared_config(shared_config)
+        .with_mode("standalone");
 
     let admin = AdminServer::new(admin_port, state);
     let mut runner = Runner::new(config, engine, admin);

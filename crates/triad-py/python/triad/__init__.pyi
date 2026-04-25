@@ -1,6 +1,18 @@
 """Type stubs for triad Python bindings."""
 
+from abc import ABC, abstractmethod
 from typing import Optional, Any
+
+
+class Aggregate(ABC):
+    version: int
+
+    @classmethod
+    @abstractmethod
+    def aggregate_type(cls) -> str: ...
+
+    @abstractmethod
+    def apply(self, event: dict[str, Any]) -> None: ...
 
 __version__: str
 
@@ -96,13 +108,14 @@ class IdempotencyStore:
 class AggregateRoot:
     id: str
     version: int
+    state: Any
     def __init__(self, aggregate_cls: type, aggregate_id: str) -> None: ...
     @staticmethod
     def rehydrate(
-        aggregate_cls: type, aggregate_id: str, events: list[dict]
+        aggregate_cls: type, aggregate_id: str, events: list[dict[str, Any]]
     ) -> "AggregateRoot": ...
-    def apply_new(self, event: dict) -> None: ...
-    def take_pending_events(self) -> list[dict]: ...
+    def apply_new(self, event: dict[str, Any]) -> None: ...
+    def take_pending_events(self) -> list[dict[str, Any]]: ...
     def pending_count(self) -> int: ...
 
 def lookup(store: IdempotencyStore, key: str) -> Optional[str]: ...
