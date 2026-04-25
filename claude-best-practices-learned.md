@@ -7,6 +7,33 @@
 
 ## Permission Allowlist
 
+### Background agents require Edit, Write, and all Bash commands in the allow list
+**Rule:** Background agents spawned via the `Agent` tool (with `run_in_background=true`) cannot
+use `Edit`, `Write`, or any Bash command not listed in the project `.claude/settings.json`
+`permissions.allow` array — even with `mode: "bypassPermissions"`.
+`bypassPermissions` only skips interactive user prompts; it cannot escalate beyond the parent
+session's permission level. Background agents have no user to approve prompts, so unapproved
+operations silently fail.
+**Symptom:** Agents produce permissions-analysis output (listing Bash patterns, asking to update
+settings.json) instead of doing their assigned task — they have discovered the
+`fewer-permission-prompts` skill when their real tools were blocked.
+**Fix:** Before launching background agents, ensure EACH worktree's `.claude/settings.json` has:
+```json
+"Edit", "Write",
+"Bash(cargo check *)", "Bash(cargo add *)", "Bash(cargo run *)",
+"Bash(cargo deny *)", "Bash(cargo machete)", "Bash(cargo semver-checks)",
+"Bash(git add *)", "Bash(git commit *)", "Bash(git push *)",
+"Bash(git fetch *)", "Bash(git pull *)", "Bash(git rev-parse *)",
+"Bash(git rev-list *)", "Bash(git stash *)", "Bash(git log *)",
+"Bash(printf *)", "Bash(chmod +x *)", "Bash(mkdir *)", "Bash(rm *)",
+"Bash(cp *)", "Bash(mv *)", "Bash(rmdir *)", "Bash(touch *)",
+"Bash(export CARGO_TARGET_DIR=*)",
+"Bash(zellij action new-tab *)", "Bash(zellij action list-tabs)",
+"Bash(zellij action go-to-tab-by-id *)", "Bash(zellij action write-chars *)",
+"Bash(zellij action rename-tab *)"
+```
+The same entries must be in ALL worktree `.claude/settings.json` files and the main project one.
+
 ### Pipes break allowlist pattern matching
 **Rule:** Never use `|` in a Bash tool call when the command needs to match an allowlist entry.
 A piped command (e.g. `git log ... | head -20`) is evaluated as a shell pipeline; Claude Code

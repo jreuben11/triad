@@ -310,6 +310,7 @@ printf '{"ts":"%s","agent":"<agent-name>","phase":<N>,"event":"<event-type>","de
 
 **Event types** (use exactly these strings):
 - `phase_started` — agent has read its prompt and begun work
+- `step_done` — one discrete unit of work completed (file written, command passed, sub-goal reached)
 - `build_ok` / `build_failed` — after `cargo check`
 - `tests_passing` / `tests_failed` — after `cargo nextest run`
 - `coverage_ok` / `coverage_failed` — after `cargo llvm-cov`
@@ -318,11 +319,23 @@ printf '{"ts":"%s","agent":"<agent-name>","phase":<N>,"event":"<event-type>","de
 - `pr_merged` — after merge confirmation
 - `agent_done` — final event before the agent tab closes
 
+**`step_done` usage** — publish after each meaningful action to give sub-milestone visibility:
+- After writing each file: `"detail":"wrote screens/dlq.rs tests (4 cases, 58 lines)"`
+- After each quality-gate command passes: `"detail":"cargo fmt passed"`, `"detail":"cargo clippy clean"`, `"detail":"cargo nextest: 31 passed"`
+- After a sub-goal: `"detail":"coverage 81.2% — threshold met","coverage_pct":81.2`
+- Optionally include a `progress` field for list-driven work: `"progress":"2/4 files"`
+
+Full event with progress field:
+```bash
+printf '{"ts":"%s","agent":"tui-coverage","phase":12,"event":"step_done","detail":"wrote dlq.rs tests (4 cases)","progress":"1/3 files","coverage_pct":null}\n' "$(date -Iseconds)" >> /tmp/triad-agent-events.jsonl
+```
+
 **Publish at these points** in every agent run:
 1. On startup → `phase_started`
-2. After quality gate → `gate_passed` or `gate_failed` (with coverage_pct if known)
-3. After `gh pr create` → `pr_opened`
-4. At end of work → `agent_done`
+2. After each file written or command passed → `step_done`
+3. After quality gate → `gate_passed` or `gate_failed` (with coverage_pct if known)
+4. After `gh pr create` → `pr_opened`
+5. At end of work → `agent_done`
 
 The `agent` field must match the worktree directory basename (e.g. `triad-py`, `triad-tui`) so `/project-status` can group events by worktree without extra mapping.
 
