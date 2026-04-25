@@ -1,0 +1,25 @@
+[package]
+name    = "triad-loadtest"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+
+[[bin]]
+name = "outbox_throughput"
+path = "src/bin/outbox_throughput.rs"
+
+[[bin]]
+name = "saga_throughput"
+path = "src/bin/saga_throughput.rs"
+
+[[bin]]
+name = "cache_read"
+path = "src/bin/cache_read.rs"
+
+[dependencies]
+goose      = "0.17"
+tokio      = { version = "1", features = ["full"] }
+serde_json = "1"
+reqwest    = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
