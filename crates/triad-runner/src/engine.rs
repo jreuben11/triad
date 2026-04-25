@@ -96,6 +96,9 @@ pub struct PatternEngine {
     /// Root token — cancelling it propagates to all child tokens.
     cancel: CancellationToken,
     pub backpressure: BackpressureController,
+    /// Keeps the admin control channel open; messages are consumed by future
+    /// pattern-control logic.
+    _control_rx: Option<tokio::sync::mpsc::Receiver<crate::admin::PatternControl>>,
 }
 
 impl PatternEngine {
@@ -105,7 +108,18 @@ impl PatternEngine {
             join_set: JoinSet::new(),
             cancel,
             backpressure: BackpressureController::new(0.80),
+            _control_rx: None,
         }
+    }
+
+    /// Attach an admin control receiver so that the channel stays open
+    /// while the engine is alive.
+    pub fn with_control_rx(
+        mut self,
+        rx: tokio::sync::mpsc::Receiver<crate::admin::PatternControl>,
+    ) -> Self {
+        self._control_rx = Some(rx);
+        self
     }
 
     /// Add a module to the engine. Must be called before `start()`.

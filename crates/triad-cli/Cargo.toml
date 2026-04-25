@@ -19,6 +19,7 @@ triad-proto  = { path = "../triad-proto" }
 
 # Async
 tokio       = { workspace = true }
+tokio-util  = { workspace = true }
 futures     = { workspace = true }
 
 # CLI
