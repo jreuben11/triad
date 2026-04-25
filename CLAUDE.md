@@ -293,7 +293,33 @@ The skill reads the **Agent Launch Configuration** table in `project-plan.md` �
 After `/zellij-launch`, check the skill output for "Run /loop in: ..." and switch to those tabs to start the loop.
 
 ### Checking progress
-Run `/project-status` in any Claude Code tab (or the dedicated `status` tab opened by `/zellij-launch`) to see: git branches, worktree list, plan checklist, cargo check result, and pass/fail per worktree.
+Run `/project-status` in any Claude Code tab (or the dedicated `status` tab opened by `/zellij-launch`) to see: git branches, worktree list, plan checklist, agent rolling events, cargo check result, and pass/fail per worktree.
+
+### Publishing agent events (rolling updates)
+
+Agents publish structured events to `/tmp/triad-agent-events.jsonl` so `/project-status` can show a live rolling timeline. Publish at key milestones using this one-liner:
+
+```bash
+printf '{"ts":"%s","agent":"<agent-name>","phase":<N>,"event":"<event-type>","detail":"<text>","coverage_pct":null}\n' "$(date -Iseconds)" >> /tmp/triad-agent-events.jsonl
+```
+
+**Event types** (use exactly these strings):
+- `phase_started` — agent has read its prompt and begun work
+- `build_ok` / `build_failed` — after `cargo check`
+- `tests_passing` / `tests_failed` — after `cargo nextest run`
+- `coverage_ok` / `coverage_failed` — after `cargo llvm-cov`
+- `gate_passed` / `gate_failed` — after the full quality gate sequence
+- `pr_opened` — after `gh pr create` (set `pr_url` field)
+- `pr_merged` — after merge confirmation
+- `agent_done` — final event before the agent tab closes
+
+**Publish at these points** in every agent run:
+1. On startup → `phase_started`
+2. After quality gate → `gate_passed` or `gate_failed` (with coverage_pct if known)
+3. After `gh pr create` → `pr_opened`
+4. At end of work → `agent_done`
+
+The `agent` field must match the worktree directory basename (e.g. `triad-py`, `triad-tui`) so `/project-status` can group events by worktree without extra mapping.
 
 ### Agent prompts
 Per-agent task descriptions live in `scripts/prompts/<name>.md`. Each prompt specifies the worktree, done criteria, and key invariants. Read these before modifying agent behaviour.

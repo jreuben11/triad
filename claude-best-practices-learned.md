@@ -633,3 +633,39 @@ instance must write a minimal YAML to a temp file and call `TriadConfig::load()`
 valid YAML is in `crates/triad-core/src/config.rs` as `MINIMAL_YAML`.
 **Fix:** Copy the `MINIMAL_YAML` constant from config.rs tests into your test, write to
 `std::env::temp_dir().join("...")`, then call `TriadConfig::load(path)`.
+
+---
+
+## Goose Load Test Crate (tests/load, Phase 9)
+
+### goose 0.17: ScenarioMetricAggregate has no built-in percentile field
+**Rule:** `GooseMetrics.scenarios` is `Vec<ScenarioMetricAggregate>`. The aggregate struct has
+a `times: BTreeMap<usize, usize>` field (runtime_ms → count) and a `counter: usize` field.
+There is no `response_time_percentile_95` field. To compute p95 you must walk the BTreeMap
+accumulating counts until you reach 95% of `counter`.
+**Fix:** Iterate `agg.times` in sorted order (BTreeMap is already sorted), accumulate `count`,
+and stop when cumulative >= ceil(counter * 0.95). The key at that point is p95_ms.
+
+### goose 0.17: ScenarioMetricAggregate has no fail_count — use requests HashMap
+**Rule:** `ScenarioMetricAggregate` tracks timing only (times, min_time, max_time, counter).
+It has no `fail_count` or `success_count`. For error-rate assertions, use
+`GooseMetrics.requests: HashMap<String, GooseRequestMetricAggregate>` which has both
+`success_count: usize` and `fail_count: usize`.
+**Fix:** Sum `.values().map(|r| r.fail_count)` and `.values().map(|r| r.success_count + r.fail_count)`.
+
+### goose 0.17: set_default type signatures
+**Rule:** `GooseDefault::Users` and `GooseDefault::RunTime` accept `usize`. `GooseDefault::Host`
+and `GooseDefault::HatchRate` accept `&str`. Passing wrong types gives a compile error.
+**Fix:** `.set_default(GooseDefault::Users, 50_usize)?` and `.set_default(GooseDefault::HatchRate, "1.67")?`
+
+### workspace reqwest with blocking feature: do not use workspace = true
+**Rule:** The workspace pins `reqwest` with `default-features = false` and `features = ["json", "rustls-tls"]`.
+Using `reqwest.workspace = true` in a crate that needs `blocking` will NOT enable the blocking
+client because workspace deps have fixed features.
+**Fix:** Declare a fresh local dep: `reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }`
+
+### Non-crates/ workspace members: place after crates/ in members array
+**Rule:** `tests/load` is the first workspace member outside the `crates/` directory. Cargo
+resolves all members regardless of order, but placing it after the established `crates/` members
+keeps `git diff` on Cargo.toml minimal and avoids confusing other tools.
+**Fix:** Append `"tests/load"` at the end of the `[workspace] members` array.
