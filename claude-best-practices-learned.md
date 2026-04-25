@@ -450,3 +450,39 @@ The `/checkpoints` route does not exist in the admin server — do not test it.
 `HeaderValue` cannot be constructed from `AnyMatcher`.
 **Fix:** Use `Mock::given(header_exists("X-Foo"))` or match only on method/path and verify
 the header separately. Alternatively, use `.and(header("X-Foo", "expected-value"))` with a literal.
+
+### `redis::Client::get_async_connection()` is deprecated in redis 0.26
+**Rule:** `get_async_connection()` returns a deprecated `aio::Connection`. Clippy `-D warnings`
+will fail.
+**Fix:** Use `client.get_multiplexed_async_connection().await?` instead.
+
+### `&'a str` lifetime annotations on method parameters trigger `needless_lifetimes` clippy
+**Rule:** Explicit lifetime parameters like `pub async fn f<'a>(&self, s: &'a str)` trigger
+`clippy::needless_lifetimes` when the lifetime can be elided.
+**Fix:** Remove the explicit lifetime: `pub async fn f(&self, s: &str)`.
+
+### Axum handler without `State` extractor compiles fine even when router uses `with_state`
+**Rule:** Axum handlers don't require a `State` extractor even when the router is constructed
+with `.with_state(state)`. Handlers that don't need state simply omit the extractor.
+**Fix:** Only add `State(s): State<AdminState>` to handlers that actually use `s`. Unused
+extractors trigger clippy `unused_variables` warnings.
+
+### `TriadConfig` does not derive `Clone` — cannot be cloned in `run.rs`
+**Rule:** `TriadConfig` and all nested config structs only derive `Debug + Deserialize + Serialize`,
+not `Clone`. Attempting to clone the config to pass to both `Runner::new` and a shared config
+`Arc<RwLock<TriadConfig>>` will fail to compile.
+**Fix:** Load the config twice via `TriadConfig::load(path)?` — once for `Runner::new` (moved)
+and once for the `shared_config` Arc.
+
+### Kafka transactional producer calls are blocking — must use `spawn_blocking`
+**Rule:** `BaseProducer::init_transactions`, `begin_transaction`, `commit_transaction`, and
+`abort_transaction` are all synchronous blocking calls in rdkafka 0.36. Calling them directly
+in an async context blocks the tokio runtime.
+**Fix:** Wrap all transaction calls in `tokio::task::spawn_blocking(|| { ... })`.
+
+### `PatternControl` variants: use separate `Replay` and `Reload`, not one variant for both
+**Rule:** Using a single `Reload` variant for both `/patterns/:name/replay` and
+`/pipelines/:name/reload` confuses pattern replay (re-consume from earliest offset) with
+pipeline reload (re-read config). These are semantically distinct operations.
+**Fix:** Define four variants: `Pause(String)`, `Resume(String)`, `Replay(String)` for pattern
+replay, and `Reload(String)` for pipeline/config reload.

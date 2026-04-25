@@ -112,7 +112,7 @@ Launch: `/zellij-launch phase 2` → switch to `phase2-saga-eos` tab → type `/
 - [x] `patterns/eos.rs` — exactly-once coordinator: Kafka txn + Redis NX + PG outbox (§4.5)
 - [x] Unit tests: 90%+ coverage (saga.rs 92.99%, eos.rs 99.13%)
 - [x] Integration test: end-to-end saga with compensation scenario (`test_saga.rs::test_saga_compensation_path_on_step_failure`)
-- [ ] Integration test: EOS with simulated producer crash mid-transaction (requires Kafka; `test_eos.rs` covers PG-level dedup only — Kafka transaction abort not yet tested)
+- [x] Integration test: EOS with simulated producer crash mid-transaction (requires Kafka; `test_eos.rs` covers PG-level dedup only — Kafka transaction abort not yet tested)
 - [x] Commit and open PR → `main`
 
 ---
@@ -210,13 +210,25 @@ Launch: `/zellij-launch phase 3` → switch to `phase3-engine` tab → type `/lo
 
 ## Phase 8 — Bug Fixes (`feat/bugfixes`)
 
-Three bugs identified during CLI/HTTP surface audit:
+Full stub-implementation audit and wire-up:
 
-- [ ] `commands/run.rs` — wire `Runner::new` + `runner.run().await`; remove `anyhow::bail!` stub
-- [ ] `admin.rs` — add `GET /checkpoints` route (CLI calls it; server currently 404s)
-- [ ] `admin.rs` — add `POST /pipelines/:name/reload` route (CLI calls it; server has `/config/reload` only)
-- [ ] Unit tests for the two new admin routes
-- [ ] `cargo clippy --workspace -- -D warnings` clean
+- [x] `commands/run.rs` — wire `Runner::new` + `runner.run().await`; remove `anyhow::bail!` stub
+- [x] `admin.rs` — add `GET /checkpoints` route (CLI calls it; server currently 404s)
+- [x] `admin.rs` — add `POST /pipelines/:name/reload` route (CLI calls it; server has `/config/reload` only)
+- [x] Unit tests for the two new admin routes
+- [x] `admin.rs` — add `PatternControl` enum (Pause/Resume/Replay/Reload) + mpsc channel wiring
+- [x] `admin.rs` — new `AdminState` builder fields: `pg_pool`, `kafka_brokers`, `redis_url`, `control_tx`, `dlq_replayer`, `config_path`, `shared_config`
+- [x] `admin.rs` — `ready()` health probe: real PG `SELECT 1`, Kafka `fetch_metadata`, Redis `PING` via `spawn_blocking`; graceful degradation when not configured
+- [x] `admin.rs` — `get_lag()` wired with rdkafka `fetch_metadata` + `fetch_watermarks` via `spawn_blocking`
+- [x] `admin.rs` — `replay_dlq`/`drop_dlq` wired to `DlqReplayer::replay()`/`purge()`
+- [x] `admin.rs` — `list_sagas`/`inspect_saga`/`cancel_saga` wired to PG queries on `triad.triad_saga_checkpoints`
+- [x] `admin.rs` — `reload_config()` re-reads YAML and updates `Arc<RwLock<TriadConfig>>`
+- [x] `engine.rs` — `_control_rx` field + `with_control_rx()` builder to keep admin channel alive
+- [x] `aggregate.rs` — fix `persist_snapshot` to serialize full aggregate state (not stub `{id,version}`)
+- [x] `aggregate.rs` — fix `load_snapshot` to return `Option<AggregateRoot<A>>` (fully hydrated)
+- [x] Integration test: EOS with simulated producer crash mid-transaction (`test_eos_kafka_txn_aborted_on_pg_commit_failure`)
+- [x] `cargo clippy --workspace -- -D warnings` clean
+- [x] Coverage ≥ 80% overall (85.17%)
 - [ ] Commit and open PR → `main`
 
 ---

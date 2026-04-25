@@ -406,16 +406,6 @@ mod tests {
         Arc::new(step)
     }
 
-    fn failing_step(name: &'static str) -> Arc<dyn SagaStep> {
-        let mut step = MockSagaStep::new();
-        step.expect_name().return_const(name.to_string());
-        step.expect_execute()
-            .returning(|_| Ok(StepOutcome::Failure("step failed".to_string())));
-        step.expect_compensate()
-            .returning(|_| Ok(StepOutcome::Success));
-        Arc::new(step)
-    }
-
     fn repo_with_no_checkpoint() -> Arc<MockSagaRepository> {
         let mut repo = MockSagaRepository::new();
         repo.expect_load().returning(|_| Ok(None));

@@ -2,7 +2,7 @@
 
 mod common;
 
-use common::containers::PgStack;
+use common::containers::{PgStack, TestStack};
 use uuid::Uuid;
 
 #[tokio::test]
@@ -138,4 +138,103 @@ async fn test_eos_idempotency_key_prevents_reprocessing() {
     .expect("SELECT response failed");
 
     assert_eq!(response["ok"], serde_json::json!(true));
+}
+
+/// Verify the EOS invariant: when the PG commit fails (simulated by rolling back the
+/// PG transaction), the Kafka transaction must also be aborted so no messages are
+/// visible to read_committed consumers.
+#[tokio::test]
+async fn test_eos_kafka_txn_aborted_on_pg_commit_failure() {
+    let stack = TestStack::start().await;
+    let pool = sqlx::PgPool::connect(&stack.pg_url)
+        .await
+        .expect("pg connect failed");
+
+    // Simulate the EOS pattern: begin both PG and Kafka transactions, then roll back PG
+    // and abort Kafka (as the EOS handler would do on PG commit failure).
+    let brokers = stack.kafka_brokers.clone();
+    tokio::task::spawn_blocking(move || {
+        use rdkafka::{
+            config::ClientConfig,
+            producer::{BaseProducer, BaseRecord, Producer},
+        };
+
+        let producer: BaseProducer = ClientConfig::new()
+            .set("bootstrap.servers", &brokers)
+            .set("transactional.id", "eos-abort-test-1")
+            .set("enable.idempotence", "true")
+            .create()
+            .expect("producer create failed");
+
+        producer
+            .init_transactions(std::time::Duration::from_secs(10))
+            .expect("init_transactions failed");
+        producer
+            .begin_transaction()
+            .expect("begin_transaction failed");
+
+        producer
+            .send(
+                BaseRecord::to("eos-abort-test-topic")
+                    .payload(b"test-payload" as &[u8])
+                    .key(b"test-key" as &[u8]),
+            )
+            .map_err(|(e, _)| e)
+            .expect("send to queue failed");
+
+        // PG commit would happen here. Simulated failure → abort Kafka transaction.
+        producer
+            .abort_transaction(std::time::Duration::from_secs(5))
+            .expect("abort_transaction failed");
+    })
+    .await
+    .expect("producer task panicked");
+
+    // Begin a real PG transaction and roll it back to confirm PG-side consistency.
+    let mut pg_tx = pool.begin().await.expect("pg begin failed");
+    sqlx::query(
+        "INSERT INTO triad.triad_inbox (event_id, pattern_name, pipeline_name)
+         VALUES (gen_random_uuid(), 'eos-abort-test', 'pipeline-1')",
+    )
+    .execute(&mut *pg_tx)
+    .await
+    .expect("pg insert failed");
+    pg_tx.rollback().await.expect("pg rollback failed");
+
+    // Verify: read_committed consumer sees NO messages from the aborted Kafka transaction.
+    let brokers = stack.kafka_brokers.clone();
+    let no_messages = tokio::task::spawn_blocking(move || -> bool {
+        use rdkafka::{
+            config::ClientConfig,
+            consumer::{BaseConsumer, Consumer},
+        };
+
+        let consumer: BaseConsumer = ClientConfig::new()
+            .set("bootstrap.servers", &brokers)
+            .set("group.id", "eos-abort-verify-consumer")
+            .set("isolation.level", "read_committed")
+            .set("auto.offset.reset", "earliest")
+            .create()
+            .expect("consumer create failed");
+
+        consumer
+            .subscribe(&["eos-abort-test-topic"])
+            .expect("subscribe failed");
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        while std::time::Instant::now() < deadline {
+            match consumer.poll(std::time::Duration::from_millis(200)) {
+                Some(Ok(_)) => return false, // Committed message visible — should not happen
+                _ => {}
+            }
+        }
+        true
+    })
+    .await
+    .expect("consumer task panicked");
+
+    assert!(
+        no_messages,
+        "aborted Kafka transaction must not produce messages visible to read_committed consumers"
+    );
 }

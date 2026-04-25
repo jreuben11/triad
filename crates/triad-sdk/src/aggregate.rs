@@ -80,10 +80,10 @@ impl<A: Aggregate> AggregateRoot<A> {
         std::mem::take(&mut self.pending_events)
     }
 
-    /// Persist a JSON snapshot of current state to Postgres via UPSERT.
+    /// Persist a JSON snapshot of the full aggregate state to Postgres via UPSERT.
     ///
-    /// Subsequent calls update the existing row; the version is stored so
-    /// event replay can resume from the snapshot rather than the beginning.
+    /// Serializes the complete state (not just `{aggregate_id, version}`) so that
+    /// `load_snapshot` can rehydrate the aggregate without replaying all events.
     #[instrument(skip(self, pool), fields(
         aggregate_type = A::aggregate_type(),
         aggregate_id = %self.id,
@@ -93,8 +93,11 @@ impl<A: Aggregate> AggregateRoot<A> {
         &self,
         pool: &sqlx::PgPool,
         snapshot_table: &str,
-    ) -> Result<(), AggregateError> {
-        let snapshot_json = serde_json::to_value(self.snapshot_payload())?;
+    ) -> Result<(), AggregateError>
+    where
+        A: serde::Serialize,
+    {
+        let snapshot_json = serde_json::to_value(&self.state)?;
 
         sqlx::query(&format!(
             "INSERT INTO {snapshot_table} \
@@ -115,12 +118,19 @@ impl<A: Aggregate> AggregateRoot<A> {
         Ok(())
     }
 
-    /// Load the most recent snapshot row from Postgres, if any.
+    /// Load the most recent snapshot and rehydrate the aggregate state.
+    ///
+    /// Returns `None` if no snapshot exists for this aggregate. On success the
+    /// returned root has its `state` fully deserialized and its version set from
+    /// the stored row — no event replay is needed.
     pub async fn load_snapshot(
         pool: &sqlx::PgPool,
         snapshot_table: &str,
         aggregate_id: &str,
-    ) -> Result<Option<AggregateSnapshot>, AggregateError> {
+    ) -> Result<Option<Self>, AggregateError>
+    where
+        A: for<'de> serde::Deserialize<'de>,
+    {
         let row: Option<(i64, serde_json::Value)> = sqlx::query_as(&format!(
             "SELECT version, snapshot FROM {snapshot_table} \
              WHERE aggregate_type = $1 AND aggregate_id = $2"
@@ -130,18 +140,18 @@ impl<A: Aggregate> AggregateRoot<A> {
         .fetch_optional(pool)
         .await?;
 
-        Ok(row.map(|(version, snapshot)| AggregateSnapshot {
-            aggregate_id: aggregate_id.to_string(),
-            version: version as u64,
-            snapshot,
-        }))
-    }
+        let Some((version, snapshot)) = row else {
+            return Ok(None);
+        };
 
-    fn snapshot_payload(&self) -> serde_json::Value {
-        serde_json::json!({
-            "aggregate_id": self.id,
-            "version": self.state.version(),
-        })
+        let mut state: A = serde_json::from_value(snapshot)?;
+        state.set_version(version as u64);
+
+        Ok(Some(Self {
+            id: aggregate_id.to_string(),
+            state,
+            pending_events: Vec::new(),
+        }))
     }
 }
 
