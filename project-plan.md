@@ -340,7 +340,7 @@ See `stage2-design.md` §"Stage 2b" for screen layouts, Tachyonfx effect plan, a
 - [x] `triad tui` subcommand wired in `triad-cli/src/main.rs`
 - [x] Unit tests for App state transitions
 - [x] Renders correctly at 80×24 and 220×50 (layout uses Constraint::Min/Percentage — adapts to any terminal size)
-- [ ] Commit and open PR → `main`
+- [x] Commit and open PR → `main` (6abad00, PR #10)
 
 ---
 
