@@ -22,6 +22,8 @@
 - [Phase 10 — Python Bindings](#phase-10--python-bindings-feattriad-py)
 - [Phase 11 — Terminal UI](#phase-11--terminal-ui-feattriad-tui)
 - [Phase 12 — Property-based Tests](#phase-12--property-based-tests-featproptest)
+- [Phase 13 — Coverage restoration](#phase-13--coverage-restoration-feattui-coverage)
+- [Phase 14 — Adversarial QA](#phase-14--adversarial-qa-featqa-fixes)
 - [Merge order (dependency-respecting)](#merge-order-dependency-respecting)
 - [/loop usage](#loop-usage)
 - [Progress tracking](#progress-tracking)
@@ -65,6 +67,14 @@ Worktrees base: `/home/jreuben1/Code/triad-worktrees/` — prompts relative to r
 | 4 | phase4-tests | tests | /tmp/triad-target-tests | scripts/prompts/tests.md | no |
 | 5 | phase5-py | triad-py | /tmp/triad-target-py | scripts/prompts/triad-py.md | no |
 | 5 | phase5-tui | triad-tui | /tmp/triad-target-tui | scripts/prompts/triad-tui.md | no |
+| 6 | phase14-qa-cli | qa-cli | /tmp/triad-target-qa-cli | scripts/prompts/qa-cli.md | yes |
+| 6 | phase14-qa-rest | qa-rest | /tmp/triad-target-qa-rest | scripts/prompts/qa-rest.md | yes |
+| 6 | phase14-qa-py | qa-py | /tmp/triad-target-qa-py | scripts/prompts/qa-py.md | yes |
+| 6 | phase14-qa-tui | qa-tui | /tmp/triad-target-qa-tui | scripts/prompts/qa-tui.md | yes |
+| 7 | phase14-fix-cli | qa-fixes | /tmp/triad-target-qa-fixes | scripts/prompts/qa-fix-cli.md | no |
+| 7 | phase14-fix-rest | qa-fixes | /tmp/triad-target-qa-fixes | scripts/prompts/qa-fix-rest.md | no |
+| 7 | phase14-fix-py | qa-fixes | /tmp/triad-target-qa-fixes | scripts/prompts/qa-fix-py.md | no |
+| 7 | phase14-fix-tui | qa-fixes | /tmp/triad-target-qa-fixes | scripts/prompts/qa-fix-tui.md | no |
 
 **Phase 9 note:** No new worktree. Run the integration gate commands directly in the main repo.
 The `status` tab can be used as the Phase 9 execution environment.
@@ -383,6 +393,87 @@ Raise workspace line coverage from ~77.8% back to ≥ 80% after `triad-tui` was 
 - [x] PR opened against `main`
 
 ---
+
+## Phase 14 — Adversarial QA (`feat/qa-fixes`)
+
+Prerequisite: Phases 9 (v0.1.0 tagged), 10 (Python bindings), 11 (TUI), 12 (proptest), and 13 (coverage) all merged to main.
+
+Four QA agents test each external surface from the outside, using `triad-system-design.md` as the
+ground-truth oracle. Each is paired with a fix agent that reads findings and patches bugs.
+QA agents run in `/loop` mode; fix agents (Batch 7) are launched on-demand when findings appear.
+
+### Communication protocol
+
+Each QA+fix pair shares `/tmp/qa-findings-<surface>.md`:
+
+```
+# QA Findings: <surface>
+Last-run: <timestamp>
+State: TESTING | FOUND | ALL_FIXED | PASSED
+
+## Finding N: <title>
+Status: FOUND | FIXED | VERIFIED
+Design ref: §X.Y "<exact quote from triad-system-design.md>"
+Expected: <what the design says should happen>
+Actual: <what actually happened, with evidence>
+Repro: <exact command / curl / Python snippet>
+Observability: <log line / metric name+value / trace span attribute>
+Fix: (fill in after applying fix)
+```
+
+QA agent sets `State: FOUND`; fix agent sets `State: ALL_FIXED`; QA re-runs and sets `State: PASSED`.
+
+### Surface 1 — CLI (`phase14-qa-cli` + `phase14-fix-cli`)
+- [ ] Test all commands in §12.2 against a live `triad server` backed by testcontainers
+- [ ] `triad status` shows real backend health (not stubs)
+- [ ] `triad patterns pause/resume <name>` visibly changes engine module state (confirm via `triad patterns list`)
+- [ ] `triad dlq list/replay/drop` operates on real Kafka DLQ topics
+- [ ] `triad saga list/inspect/cancel` queries real PG `triad_saga_checkpoints`
+- [ ] `triad lag` returns non-zero Kafka consumer lag after publishing test events
+- [ ] Structured JSON log output includes `trace_id`, `pattern_name`, `pipeline_name` on every operation
+- [ ] Prometheus `/metrics` counters advance as CLI operations trigger engine work
+- [ ] All findings reach `Status: VERIFIED`
+
+### Surface 2 — REST API (`phase14-qa-rest` + `phase14-fix-rest`)
+- [ ] All routes in §9 (CLAUDE.md admin endpoints) respond correctly against a running `AdminServer`
+- [ ] Boundary conditions: unknown pattern names → 404, malformed JSON → 400, missing fields → 422
+- [ ] `GET /health/ready` probes real PG/Kafka/Redis (verify by killing Redis and checking degraded response)
+- [ ] `POST /patterns/:name/pause` + `GET /patterns` confirms state change in engine
+- [ ] `GET /lag` returns non-empty Kafka lag data after consuming test messages
+- [ ] Saga routes (`/saga`, `/saga/:id`, `POST /saga/:id/cancel`) query and modify real PG
+- [ ] OTel spans for each request carry `triad.pattern.name` and `triad.pipeline.name` attributes (§17.3)
+- [ ] `triad_pipeline_events_total` counter advances after triggering events via REST
+- [ ] All findings reach `Status: VERIFIED`
+
+### Surface 3 — Python Bindings (`phase14-qa-py` + `phase14-fix-py`)
+- [ ] `PyOutboxPublisher.publish()` inside a `PyTransaction` — abort the transaction → no Kafka message delivered
+- [ ] `PyFlagEvaluator.is_enabled()` — flag set in PG → appears from Redis within 5 s hot-reload window
+- [ ] `PySagaBuilder` — happy path and compensation path (step 2 fails → step 1 compensated)
+- [ ] `PyIdempotencyKey` — two calls with same key → second returns cached response, no double-process
+- [ ] All async methods interoperate correctly with Python `asyncio` event loop (no deadlock, no leaked tasks)
+- [ ] `mypy` type stubs: no `Any` surprises; all return types are concrete
+- [ ] pytest-asyncio test suite passes with real testcontainers PG + Redis + Kafka
+- [ ] All findings reach `Status: VERIFIED`
+
+### Surface 4 — TUI (`phase14-qa-tui` + `phase14-fix-tui`)
+- [ ] Dashboard polls real backend status; `healthy`/`degraded` reflects actual container state
+- [ ] Patterns screen pause/resume triggers engine state change (confirmed via `GET /patterns` REST call)
+- [ ] DLQ screen shows real Kafka message counts (produce test messages to DLQ topic, confirm count updates)
+- [ ] Sagas screen shows real PG checkpoint rows
+- [ ] Config screen renders full `triad.yaml` tree; live validate rejects invalid YAML
+- [ ] Tachyonfx effects fire on state transitions without panic or frozen screen
+- [ ] `q` and Ctrl-C exit cleanly (no zombie processes, no leaked Tokio tasks)
+- [ ] Renders without layout overflow at 80×24 and 220×50
+- [ ] All findings reach `Status: VERIFIED`
+
+### Phase 14 overall done criteria
+- [ ] All four surfaces: `State: PASSED` in findings file
+- [ ] Quality gate: fmt + clippy + nextest + coverage ≥ 80% on `feat/qa-fixes`
+- [ ] Mark all Phase 14 items `[x]`; update `claude-best-practices-learned.md`
+- [ ] Commit and open PR → `main`
+
+---
+
 ## Merge order (dependency-respecting)
 
 ```
@@ -401,12 +492,17 @@ Phase 4: triad-cli           ──┐ (parallel with engine)
                                ▼
 Phase 7: tests
                                ▼
-Phase 8: bug fixes
+Phase 8 + 8b: bug fixes + observability
                                ▼
 Phase 9: final gate → v0.1.0
                                ▼
 Phase 10: triad-py  ──┐
 Phase 11: triad-tui ──┘ (parallel)
+                       ▼
+Phase 12: proptest ──┐
+Phase 13: coverage ──┘ (parallel)
+                       ▼
+Phase 14: adversarial QA (4 surfaces in parallel, fix agents on-demand)
 ```
 
 ---

@@ -747,3 +747,63 @@ is a known drag on workspace totals. Focus coverage gains on `triad-sdk` and `tr
 have pure-Rust testable logic.
 **Fix:** To raise workspace coverage, target SDK (`aggregate.rs`, `patterns.rs`, `instance.rs`)
 and TUI screen files. Avoid wasting time trying to test binary main() or PyO3 extension init code.
+
+---
+
+## Adversarial QA Agent Pairs (Phase 14)
+
+### Design-doc-as-oracle: never use the implementation as ground truth
+**Rule:** A QA agent must derive all test cases from `triad-system-design.md`, not from reading
+the source code. The implementation is the subject under test — reading it biases the agent toward
+confirming what the code does rather than what the design requires.
+**Fix:** QA agent prompt must explicitly say: "Do NOT read source files. Use only
+`triad-system-design.md`, tool outputs (CLI, curl, Python), logs, metrics, and traces."
+
+### Observability signals are first-class test assertions
+**Rule:** A QA agent is not limited to checking return values. Three additional oracles are always
+available and must be used:
+- **Logs**: every operation must emit structured JSON with `trace_id`, `pattern_name`, `pipeline_name`.
+  Assert these fields are present; absence = test failure.
+- **Metrics**: Prometheus counters (`triad_*_total`, `triad_*_errors_total`) must advance on
+  success and error paths. A counter that doesn't move when work was done indicates a stub.
+- **Traces**: OTel spans must carry `triad.pattern.name` and `triad.pipeline.name` attributes per §17.3.
+**Fix:** QA prompts must include: "After each test, check that the expected metric counter advanced,
+the log line was emitted, and the OTel span has the required attributes."
+
+### Findings file protocol: state machine for QA↔fix communication
+**Rule:** `/tmp/qa-findings-<surface>.md` is the coordination point. Strict state machine:
+```
+TESTING → FOUND (QA writes when any finding is FOUND)
+FOUND   → ALL_FIXED (fix agent writes after implementing all fixes)
+ALL_FIXED → PASSED (QA re-runs and verifies all FIXED items → VERIFIED)
+ALL_FIXED → FOUND (QA re-runs and finds regressions or unresolved items)
+```
+Each finding has `Status: FOUND | FIXED | VERIFIED`. Only the QA agent sets VERIFIED.
+**Fix:** QA agent prompt: "At the start of each /loop iteration, read the findings file.
+If State=ALL_FIXED, re-run all FIXED repros and set VERIFIED or reopen as FOUND."
+
+### QA agents run in /loop; fix agents are launched on-demand
+**Rule:** QA agents are always `/loop` because they re-test after each fix cycle. Fix agents are
+NOT in `/loop` — they read findings, apply fixes, set ALL_FIXED, and exit.
+**Fix:** In the Agent Launch Configuration table, QA agents have `/loop? = yes`;
+fix agents have `/loop? = no`. Fix agents exit after setting `State: ALL_FIXED`.
+
+### Black-box testing: QA agent must test the surface, not the internals
+**Rule:** CLI QA tests the `triad` binary. REST QA tests via `curl`. Python QA tests the installed
+`.whl`. TUI QA drives the running binary. None of them should read `src/` or invoke internal APIs.
+**Fix:** QA agent prompts start with: "Build the release binary once
+(`cargo build --release -p triad-cli`), then treat it as a black box for all subsequent tests."
+
+### Pairing discipline: one fix agent per surface, one worktree for all fixes
+**Rule:** All four fix agents share `feat/qa-fixes`. This is safe because CLI/REST/Python/TUI fixes
+touch disjoint files. If two fix agents simultaneously touch `admin.rs`, they will conflict.
+**Fix:** Launch fix agents serially per surface. Or coordinate via a lock file:
+`/tmp/qa-fix-lock` — fix agent creates it at start, removes at exit.
+
+### Adversarial test generation: boundaries, failures, concurrency
+**Rule:** For each design section, generate:
+- **Boundary cases**: test exactly at documented thresholds (e.g. `leaseDurationSeconds=15s`)
+- **Failure injection**: kill Redis mid-operation, verify PG fallback (§7.5 EOS fallback path)
+- **Concurrency**: send two identical requests simultaneously, verify dedup applies correctly
+**Fix:** QA prompt template: "For each surface capability, write one happy-path test,
+one boundary test (at the exact documented limit), and one failure-injection test."
