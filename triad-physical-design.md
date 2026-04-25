@@ -57,12 +57,9 @@ triad/                                  ← workspace root
 │   │   │   ├── engine.rs
 │   │   │   ├── shutdown.rs
 │   │   │   ├── checkpoint.rs
-│   │   │   ├── leader/
-│   │   │   │   ├── mod.rs
-│   │   │   │   ├── noop.rs
-│   │   │   │   └── k8s.rs              ← #[cfg(feature = "kubernetes")]
+│   │   │   ├── leader.rs               ← NoopLeader + K8sLeaseLeader (kubernetes feature)
+│   │   │   ├── backends.rs             ← re-exports postgres/kafka/redis/circuit_breaker
 │   │   │   ├── backends/
-│   │   │   │   ├── mod.rs
 │   │   │   │   ├── postgres.rs
 │   │   │   │   ├── kafka.rs
 │   │   │   │   ├── redis.rs
@@ -77,45 +74,41 @@ triad/                                  ← workspace root
 │   │   │   │   ├── cache.rs
 │   │   │   │   ├── webhook.rs
 │   │   │   │   ├── feature_flag.rs
+│   │   │   │   ├── feature_store.rs    ← online/offline feature serving
 │   │   │   │   ├── rate_limit.rs
 │   │   │   │   └── dlq.rs
-│   │   │   └── admin/
-│   │   │       ├── mod.rs
-│   │   │       ├── http.rs             ← Axum router + handlers
-│   │   │       └── grpc.rs             ← tonic TriadAdmin service impl
+│   │   │   └── admin.rs               ← Axum router + handlers (gRPC server deferred to v0.2.0)
 │   │   └── tests/
 │   │       ├── common/
+│   │       │   ├── mod.rs
 │   │       │   └── containers.rs       ← testcontainers setup helpers
+│   │       ├── integration/
+│   │       │   ├── main.rs             ← integration test harness entry point
+│   │       │   └── test_backends.rs    ← backend connectivity tests
 │   │       ├── test_outbox.rs
-│   │       ├── test_inbox.rs
 │   │       ├── test_cdc.rs
 │   │       ├── test_saga.rs
 │   │       ├── test_eos.rs
 │   │       ├── test_cache.rs
 │   │       ├── test_webhook.rs
-│   │       └── test_circuit_breaker.rs
+│   │       ├── test_feature_flag.rs
+│   │       ├── test_admin_api.rs
+│   │       └── test_spans.rs
 │   └── triad-cli/                      ← triad binary (Mode 2 server + admin client)
 │       ├── Cargo.toml
 │       └── src/
 │           ├── main.rs
 │           └── commands/
 │               ├── mod.rs
-│               ├── server.rs
-│               ├── validate.rs
-│               ├── migrate.rs
-│               ├── version.rs
+│               ├── run.rs              ← `triad run` (loads config, starts Runner)
+│               ├── config.rs           ← `triad config validate`
 │               └── admin/
-│                   ├── mod.rs          ← AdminClient (reqwest wrapper)
-│                   ├── status.rs
-│                   ├── patterns.rs
-│                   ├── dlq.rs
-│                   ├── lag.rs
-│                   └── saga.rs
+│                   └── mod.rs          ← AdminClient + all subcommand handlers
 └── tests/
-    └── load/
-        ├── outbox_throughput.js        ← k6 load scenario
-        ├── saga_throughput.js
-        ├── cache_read.js
+    └── load/                           ← k6 load scenarios (not yet created — Phase 9+)
+        ├── outbox_throughput.js        ← 10,000 events/s for 60s
+        ├── saga_throughput.js          ← 1,000 sagas/s for 30s
+        ├── cache_read.js               ← 5,000 reads/s; cache hit > 95%
         └── assert.rs                   ← PromQL assertion runner
 ```
 
@@ -1359,7 +1352,9 @@ impl Runner {
 }
 ```
 
-### §4.8 `admin/http.rs` — Axum Admin Router
+### §4.8 `admin.rs` — Axum Admin Server
+
+Single-file admin server (gRPC server deferred to v0.2.0; proto definitions in `triad-proto` are ready).
 
 ```rust
 pub fn admin_router(state: AdminState) -> axum::Router {
@@ -1369,32 +1364,35 @@ pub fn admin_router(state: AdminState) -> axum::Router {
         .route("/health/ready",   get(handlers::ready))
         .route("/health/started", get(handlers::started))
         // Patterns
-        .route("/patterns",               get(handlers::list_patterns))
-        .route("/patterns/:name/pause",   post(handlers::pause_pattern))
-        .route("/patterns/:name/resume",  post(handlers::resume_pattern))
-        .route("/patterns/:name/replay",  post(handlers::replay_pattern))
+        .route("/patterns",                  get(handlers::list_patterns))
+        .route("/patterns/:name/pause",      post(handlers::pause_pattern))
+        .route("/patterns/:name/resume",     post(handlers::resume_pattern))
+        .route("/patterns/:name/replay",     post(handlers::replay_pattern))
+        // Checkpoints + pipelines
+        .route("/checkpoints",               get(handlers::list_checkpoints))
+        .route("/pipelines/:name/reload",    post(handlers::reload_pipeline))
         // Operational
-        .route("/lag",                    get(handlers::get_lag))
-        .route("/dlq/:topic",             get(handlers::list_dlq))
-        .route("/dlq/:topic/replay",      post(handlers::replay_dlq))
-        .route("/dlq/:topic",             delete(handlers::drop_dlq))
-        .route("/registry",               get(handlers::get_registry))  // §18 pattern registry
-        .route("/saga",                   get(handlers::list_sagas))
-        .route("/saga/:id",               get(handlers::inspect_saga))
-        .route("/saga/:id/cancel",        post(handlers::cancel_saga))
-        .route("/config/reload",          post(handlers::reload_config))
-        .route("/metrics/cardinality",    get(handlers::cardinality))
+        .route("/lag",                       get(handlers::get_lag))
+        .route("/dlq/:topic",                get(handlers::list_dlq))
+        .route("/dlq/:topic/replay",         post(handlers::replay_dlq))
+        .route("/dlq/:topic",                delete(handlers::drop_dlq))
+        .route("/registry",                  get(handlers::get_registry))
+        .route("/saga",                      get(handlers::list_sagas))
+        .route("/saga/:id",                  get(handlers::inspect_saga))
+        .route("/saga/:id/cancel",           post(handlers::cancel_saga))
+        .route("/config/reload",             post(handlers::reload_config))
+        .route("/metrics/cardinality",       get(handlers::cardinality))
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state)
 }
 ```
 
-### §4.9 `leader/` — Leader Election
+### §4.9 `leader.rs` — Leader Election
+
+Single file; `NoopLeader` always compiles, `K8sLeaseLeader` is behind `#[cfg(feature = "kubernetes")]`.
 
 ```rust
-// traits.rs defines LeaderElector (§3.2)
-
-// leader/noop.rs — Mode 1 and Mode 2 (single instance, always leader)
+// NoopLeader — Mode 1 and Mode 2 (single instance, always leader)
 pub struct NoopLeader;
 #[async_trait]
 impl LeaderElector for NoopLeader {
@@ -1404,25 +1402,27 @@ impl LeaderElector for NoopLeader {
     fn is_leader(&self) -> bool { true }
 }
 
-// leader/k8s.rs — Mode 3 (only compiled with --features kubernetes)
-#[cfg(feature = "kubernetes")]
-pub struct K8sLeaseLeader {
-    client:     kube::Client,
-    namespace:  String,
-    lease_name: String,
-    pod_name:   String,
-    duration_s: i32,
-}
-#[cfg(feature = "kubernetes")]
-#[async_trait]
-impl LeaderElector for K8sLeaseLeader {
-    async fn campaign(&self) -> Result<LeaderHandle, ElectionError> {
-        // Create or update coordination.k8s.io/v1 Lease
-        // Renew on a ticker at duration_s / 3 intervals
-        // Return LeaderHandle when lease is held; drop to stop renewal
-        todo!()
+// K8sLeaseLeader — Mode 3 (only compiled with --features kubernetes)
+pub mod k8s {
+    #[cfg(feature = "kubernetes")]
+    pub struct K8sLeaseLeader {
+        client:     kube::Client,
+        namespace:  String,
+        lease_name: String,
+        pod_name:   String,
+        duration_s: i32,
     }
-    fn is_leader(&self) -> bool { todo!() }
+    #[cfg(feature = "kubernetes")]
+    #[async_trait]
+    impl LeaderElector for K8sLeaseLeader {
+        async fn campaign(&self) -> Result<LeaderHandle, ElectionError> {
+            // Create or update coordination.k8s.io/v1 Lease
+            // Renew on a ticker at duration_s / 3 intervals
+            // Return LeaderHandle when lease is held; drop to stop renewal
+            todo!()
+        }
+        fn is_leader(&self) -> bool { todo!() }
+    }
 }
 ```
 
@@ -1522,47 +1522,57 @@ pub struct Cli {
 pub enum Command {
     // ── Local commands (no running server required) ────────────────
     /// Start the Triad runner as a foreground process
-    Server(ServerArgs),
-    /// Validate triad.yaml and print startup check results
-    Validate(ValidateArgs),
-    /// Apply database migrations against configured PostgreSQL
-    Migrate(MigrateArgs),
-    /// Print build version and config schema version
-    Version,
+    Run(RunArgs),
+    /// Configuration utilities (validate, etc.)
+    #[command(subcommand)]
+    Config(ConfigCommand),
 
     // ── Admin-client commands (require TRIAD_ADMIN_URL) ────────────
     /// Print server health, mode, uptime, and active pattern count
     Status,
-    /// Manage patterns
+    /// Manage pattern modules (list / pause / resume)
     #[command(subcommand)]
-    Patterns(PatternsCommand),
-    /// Inspect and manage DLQ topics
+    Pattern(PatternCommand),
+    /// Inspect checkpoint offsets
+    #[command(subcommand)]
+    Checkpoint(CheckpointCommand),
+    /// Inspect and manage DLQ topics (list / replay / purge)
     #[command(subcommand)]
     Dlq(DlqCommand),
-    /// Print Kafka consumer group lag per topic/partition
-    Lag,
-    /// Inspect and manage in-flight sagas
+    /// Reload a running pipeline
     #[command(subcommand)]
-    Saga(SagaCommand),
+    Pipeline(PipelineCommand),
 }
 
 #[derive(Args)]
-pub struct ServerArgs {
+pub struct RunArgs {
     #[arg(short, long, default_value = "triad.yaml", env = "TRIAD_CONFIG")]
     pub config: PathBuf,
     #[arg(long, default_value = "false")]
     pub kubernetes: bool,
 }
 
-// Output format flag present on all admin commands
-#[derive(Args)]
-pub struct OutputArgs {
-    #[arg(long, default_value = "table")]
-    pub output: OutputFormat,   // table | json
+// ConfigCommand wraps local-only utilities (no running server needed)
+#[derive(Subcommand)]
+pub enum ConfigCommand {
+    Validate(ValidateArgs),
+    // Migrate and Version subcommands deferred to v0.2.0
 }
+
+// Admin subcommands (all talk to TRIAD_ADMIN_URL via AdminClient)
+#[derive(Subcommand)]
+pub enum PatternCommand   { List, Pause { name: String }, Resume { name: String } }
+#[derive(Subcommand)]
+pub enum CheckpointCommand { List }
+#[derive(Subcommand)]
+pub enum DlqCommand       { List { topic: String }, Replay { topic: String }, Purge { topic: String } }
+#[derive(Subcommand)]
+pub enum PipelineCommand  { Reload { name: String } }
 ```
 
-### §6.2 `commands/admin/mod.rs` — Admin Client
+**Deferred CLI commands (v0.2.0):** `Migrate` (sqlx migration runner), `Version` (print build info), `Lag` (Kafka consumer group lag). The underlying admin HTTP endpoint (`GET /lag`) is already implemented.
+
+### §6.2 `commands/admin/mod.rs` — Admin Client (single file, all subcommands)
 
 ```rust
 pub struct AdminClient {
@@ -1634,8 +1644,10 @@ CREATE TABLE triad.triad_saga_checkpoints (
     saga_id           UUID         PRIMARY KEY,
     saga_name         TEXT         NOT NULL,
     current_step      INT          NOT NULL DEFAULT 0,
+    status            TEXT         NOT NULL DEFAULT 'Started',
     state             JSONB        NOT NULL DEFAULT '{}',
     compensation_mode BOOLEAN      NOT NULL DEFAULT false,
+    version           BIGINT       NOT NULL DEFAULT 0,
     updated_at        TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 CREATE INDEX ON triad.triad_saga_checkpoints (saga_name, updated_at DESC);
@@ -1760,46 +1772,51 @@ mod tests {
 
 ### §8.2 Integration Tests
 
-Located in `crates/triad-runner/tests/`. Each test file gets its own containers via `testcontainers`. A shared helper in `tests/common/containers.rs` builds the standard stack.
+Located in `crates/triad-runner/tests/`. Shared helpers live in `tests/common/`; integration harness entry point is `tests/integration/main.rs`.
 
 ```rust
 // tests/common/containers.rs
-use testcontainers::{clients::Cli, Container};
+use testcontainers::ContainerAsync;
 use testcontainers_modules::{kafka::Kafka, postgres::Postgres, redis::Redis};
 
-pub struct TestStack<'d> {
+pub struct TestStack {
     pub pg_url:    String,
     pub kafka_url: String,
     pub redis_url: String,
-    _pg:    Container<'d, Postgres>,
-    _kafka: Container<'d, Kafka>,
-    _redis: Container<'d, Redis>,
+    _pg:    ContainerAsync<Postgres>,
+    _kafka: ContainerAsync<Kafka>,
+    _redis: ContainerAsync<Redis>,
 }
 
-impl<'d> TestStack<'d> {
-    pub async fn start(cli: &'d Cli) -> Self {
-        let pg    = cli.run(Postgres::default().with_env_var("POSTGRES_DB", "triad_test"));
-        let kafka = cli.run(Kafka::default());
-        let redis = cli.run(Redis::default());
+impl TestStack {
+    pub async fn start() -> Self {
+        let pg    = Postgres::default().start().await.unwrap();
+        let kafka = Kafka::default().start().await.unwrap();
+        let redis = Redis::default().start().await.unwrap();
         // run migrations against pg
-        Self { pg_url: pg_url(&pg), kafka_url: broker_url(&kafka), redis_url: redis_url(&redis), _pg: pg, _kafka: kafka, _redis: redis }
+        Self { pg_url: pg_url(&pg).await, kafka_url: broker_url(&kafka).await,
+               redis_url: redis_url(&redis).await, _pg: pg, _kafka: kafka, _redis: redis }
     }
 }
 ```
 
 **Integration test scenarios** (map to §19.3):
 
-| Test file | Scenario | Deadline |
-|-----------|----------|----------|
-| `test_outbox.rs` | Outbox INSERT → Kafka message appears | 2s |
-| `test_cdc.rs` | PG table UPDATE → Kafka event produced | 1s |
-| `test_inbox.rs` | Same event delivered twice → processed once | 3s |
-| `test_saga.rs` | All steps succeed → saga Completed | 5s |
-| `test_saga.rs` | Step 2 times out → compensation fires | 5s |
-| `test_cache.rs` | PG row change → Redis key updated | 1s |
-| `test_eos.rs` | Exactly-once: duplicate Kafka message → no double write | 3s |
-| `test_webhook.rs` | Event → HTTP delivery with HMAC header | 30s |
-| `test_circuit_breaker.rs` | Redis failures → CB opens → reads from PG | 10s |
+| Test file | Scenario | Deadline | Status |
+|-----------|----------|----------|--------|
+| `test_outbox.rs` | Outbox INSERT → Kafka message appears | 2s | ✓ |
+| `test_cdc.rs` | PG table UPDATE → Kafka event produced | 1s | ✓ |
+| `test_saga.rs` | All steps succeed → saga Completed | 5s | ✓ |
+| `test_saga.rs` | Step 2 times out → compensation fires | 5s | ✓ |
+| `test_cache.rs` | PG row change → Redis key updated | 1s | ✓ |
+| `test_eos.rs` | Exactly-once: duplicate Kafka message → no double write | 3s | ✓ |
+| `test_webhook.rs` | Event → HTTP delivery with HMAC header | 30s | ✓ |
+| `test_feature_flag.rs` | PG flag change → Redis hot reload | 5s | ✓ |
+| `test_admin_api.rs` | All HTTP admin endpoints respond correctly | — | ✓ |
+| `test_spans.rs` | Every span has `pattern_name` + `pipeline_name` | — | ✓ |
+| `integration/test_backends.rs` | Backend connectivity (PG pool, Kafka, Redis) | — | ✓ |
+| `test_inbox.rs` | Same event delivered twice → processed once | 3s | ❌ not yet created |
+| `test_circuit_breaker.rs` | Redis failures → CB opens → reads from PG | 10s | ❌ not yet created |
 
 ### §8.3 Load Tests
 

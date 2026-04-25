@@ -183,19 +183,26 @@ tests/
 ## Admin API endpoints (port 8080)
 
 ```
-GET  /health/live      liveness probe
-GET  /health/ready     readiness probe (checks PG + Kafka + Redis + Schema Registry)
-GET  /health/started   startup probe
-GET  /metrics          Prometheus text format
-GET  /patterns         list all pattern modules + state
+GET  /health/live               liveness probe
+GET  /health/ready              readiness probe (checks PG + Kafka + Redis)
+GET  /health/started            startup probe
+GET  /metrics                   Prometheus text format
+GET  /patterns                  list all pattern modules + state
 POST /patterns/{name}/pause
 POST /patterns/{name}/resume
-GET  /registry         pattern module registry
-GET  /checkpoints      list checkpoint offsets
+POST /patterns/{name}/replay
+GET  /registry                  pattern module registry
+GET  /checkpoints               list checkpoint offsets
 POST /pipelines/{name}/reload
-GET  /dlq/{topic}      list DLQ messages
+GET  /lag                       Kafka consumer group lag per topic/partition
+GET  /dlq/{topic}               list DLQ messages
 POST /dlq/{topic}/replay
-DELETE /dlq/{topic}    purge DLQ
+DELETE /dlq/{topic}             purge DLQ
+GET  /saga                      list in-flight sagas
+GET  /saga/{id}                 inspect saga state + step history
+POST /saga/{id}/cancel
+POST /config/reload             re-read triad.yaml
+GET  /metrics/cardinality       metric label cardinality report
 ```
 
 ## Launching agents
@@ -271,6 +278,30 @@ It takes 10–15 minutes and prevents the project from accruing invisible techni
 - Are newly implemented patterns added to §13 and marked in the v0.1.0 status block?
 - Are any §14 open questions now resolved? Update with the decision taken.
 - Do §15.3 metric names match constants in `triad-core/src/metrics.rs`?
+
+### Design/code/plan sync review (run at end of every phase)
+
+Verify all three artefacts are consistent **before** opening a PR or tagging a release:
+
+1. **Directory tree** — does `triad-physical-design.md` §1.1 match reality?
+   ```bash
+   find crates/ -type f -name "*.rs" | sort   # compare against §1.1
+   find tests/  -type f | sort
+   ```
+   Update §1.1 for any files added, renamed, or removed.
+
+2. **Schema** — do `triad-physical-design.md` §7 DDL blocks match the actual migration files in `crates/triad-runner/migrations/`? Any column added/removed in a migration must be reflected.
+
+3. **CLI command tree** — does §6.1 in the design doc match `triad-cli/src/main.rs`? Update for new subcommands.
+
+4. **Plan truthfulness** — no `[x]` in `project-plan.md` for an artefact not present on disk:
+   ```bash
+   # spot-check: pick five [x] file items and verify they exist
+   ls crates/triad-runner/tests/test_inbox.rs   # example of a previously false [x]
+   ```
+   Uncheck any item whose artefact is missing; move it to the current phase as `[ ]`.
+
+5. **Admin routes** — does the `CLAUDE.md` "Admin API endpoints" table match the routes in `admin.rs`? Add any new routes added this phase.
 
 ### Codebase review
 - Run `cargo machete` — remove any unused dependencies that accumulated.

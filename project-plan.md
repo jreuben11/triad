@@ -201,6 +201,7 @@ Launch: `/zellij-launch phase 3` → switch to `phase3-engine` tab → type `/lo
 **Strategy: parallel agent. Owns Phase 6 migrations + integration tests.**
 
 - [x] `crates/triad-runner/tests/common/containers.rs` — `TestStack`: boots PG + Kafka + Redis, runs migrations
+- [x] `crates/triad-runner/tests/integration/test_backends.rs` — backend connectivity tests
 - [x] `crates/triad-runner/tests/test_outbox.rs` — outbox → Kafka → inbox round-trip (EOS)
 - [x] `crates/triad-runner/tests/test_cdc.rs` — PG WAL → ChangeEvent stream (1s deadline)
 - [x] `crates/triad-runner/tests/test_saga.rs` — happy path + compensation path (5s deadline)
@@ -209,8 +210,14 @@ Launch: `/zellij-launch phase 3` → switch to `phase3-engine` tab → type `/lo
 - [x] `crates/triad-runner/tests/test_webhook.rs` — delivery with `wiremock`, retry, DLQ (30s deadline)
 - [x] `crates/triad-runner/tests/test_feature_flag.rs` — PG → Redis hot reload (5s deadline)
 - [x] `crates/triad-runner/tests/test_admin_api.rs` — all HTTP endpoints
-- [x] `tests/load/` — k6 script stubs (`outbox_throughput.js`, `saga_throughput.js`, `cache_read.js`)
-- [x] All integration tests pass: `cargo nextest run -p triad-runner --features integration`
+- [x] `crates/triad-runner/tests/test_spans.rs` — span attribute assertions
+- [ ] `crates/triad-runner/tests/test_inbox.rs` — same event delivered twice → processed once (3s deadline)
+- [ ] `crates/triad-runner/tests/test_circuit_breaker.rs` — Redis failures → CB opens → fallback to PG (10s deadline)
+- [ ] `tests/load/outbox_throughput.js` — k6: 10,000 events/s for 60s
+- [ ] `tests/load/saga_throughput.js` — k6: 1,000 sagas/s for 30s
+- [ ] `tests/load/cache_read.js` — k6: 5,000 reads/s; cache hit > 95%
+- [ ] `tests/load/assert.rs` — PromQL assertion runner
+- [x] All existing integration tests pass: `cargo nextest run -p triad-runner --features integration`
 - [x] Commit and open PR → `main`
 
 ---
@@ -252,18 +259,29 @@ Full stub-implementation audit and wire-up:
 
 **Note:** Phase 9 runs directly in the main repo (no new worktree). Run all commands in `/home/jreuben1/Code/triad` with `export CARGO_TARGET_DIR=/tmp/triad-target-main`.
 
-- [ ] `cargo deny check` — license compliance + CVE advisories (`deny.toml` scaffold included)
-- [ ] `cargo machete` — unused dependency detection (`cargo install cargo-machete`)
-- [ ] `cargo fmt --check` clean
-- [ ] `cargo clippy --workspace -- -D warnings` clean
-- [ ] `cargo check --workspace` clean
-- [ ] `cargo nextest run --workspace` — all unit tests pass
-- [ ] `cargo nextest run --workspace --features integration` — all integration tests pass
+**Quality gate (already passing):**
+- [x] `cargo deny check` — license compliance + CVE advisories
+- [x] `cargo machete` — unused dependency detection
+- [x] `cargo fmt --check` clean
+- [x] `cargo clippy --workspace -- -D warnings` clean
+- [x] `cargo check --workspace` clean
+- [x] `cargo nextest run --workspace` — all unit tests pass (337/337)
+
+**Remaining gate items:**
+- [ ] Create `crates/triad-runner/tests/test_inbox.rs` (inbox dedup integration test)
+- [ ] Create `crates/triad-runner/tests/test_circuit_breaker.rs` (Redis CB integration test)
+- [ ] Create `tests/load/` k6 scripts (outbox_throughput.js, saga_throughput.js, cache_read.js, assert.rs)
+- [ ] `cargo nextest run --workspace --features integration` — all integration tests pass (needs Docker)
 - [ ] `cargo llvm-cov nextest --workspace --fail-under-lines 80` — coverage ≥ 80% overall
 - [ ] `cargo llvm-cov nextest --package triad-runner --fail-under-lines 90` — runner ≥ 90%
-- [ ] `cargo semver-checks` — establishes v0.1.0 API compatibility baseline (`cargo install cargo-semver-checks`)
-- [ ] Stale worktree cleanup: `git worktree remove --force` all merged worktrees + `git branch -D`
+- [ ] `cargo semver-checks` — establishes v0.1.0 API compatibility baseline
 - [ ] Tag `v0.1.0`
+
+**Deferred to v0.2.0 (not blocking v0.1.0 tag):**
+- [ ] `triad migrate` CLI subcommand — sqlx migration runner
+- [ ] `triad version` CLI subcommand — print build info + config schema version
+- [ ] `triad lag` CLI subcommand — Kafka consumer group lag (admin HTTP endpoint `GET /lag` already implemented)
+- [ ] gRPC admin server (`admin/grpc.rs`) — `triad-proto` definitions are ready; wire tonic service
 
 ---
 
