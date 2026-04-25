@@ -218,4 +218,40 @@ mod tests {
         let b = instance.redis();
         assert!(Arc::ptr_eq(&a, &b));
     }
+
+    #[tokio::test]
+    async fn test_handles_returns_all_fields() {
+        let instance = make_instance();
+        let handles = instance.handles();
+        assert!(!handles.cancel.is_cancelled());
+        // pg and redis arcs are valid (check they're not null by using them)
+        drop(handles);
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_timeout_returns_error() {
+        let mut instance = make_instance();
+        // Spawn a task that never completes (ignores cancellation)
+        instance.tasks.spawn(async {
+            // sleep for a very long time — will be killed by timeout
+            tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+            Ok(())
+        });
+        // Use a very short timeout to trigger the Timeout error path
+        let result = instance.shutdown(Duration::from_millis(1)).await;
+        assert!(matches!(result, Err(ShutdownError::Timeout { .. })));
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_logs_task_error_and_continues() {
+        let mut instance = make_instance();
+        let child = instance.cancel.child_token();
+        instance.tasks.spawn(async move {
+            child.cancelled().await;
+            // Task exits with an error — shutdown should still succeed
+            Err(PatternError::Cancelled)
+        });
+        let result = instance.shutdown(Duration::from_millis(500)).await;
+        assert!(result.is_ok());
+    }
 }

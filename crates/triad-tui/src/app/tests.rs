@@ -467,3 +467,207 @@ fn test_render_with_data_populated() {
         smoke_render(&mut app, 120, 40);
     }
 }
+
+// --- input.rs: uncovered branches ---
+
+#[test]
+fn test_dlq_navigation_up_down_clears_confirm() {
+    let mut app = App::new();
+    app.screen = Screen::Dlq;
+    app.data.patterns = vec![
+        crate::client::PatternInfo {
+            name: "orders".to_string(),
+            pattern_type: "outbox".to_string(),
+            status: "Running".to_string(),
+        },
+        crate::client::PatternInfo {
+            name: "payments".to_string(),
+            pattern_type: "outbox".to_string(),
+            status: "Running".to_string(),
+        },
+    ];
+    app.dlq_confirm_purge = true;
+
+    app.handle_key(make_key(KeyCode::Down));
+    assert_eq!(app.dlq_selected, 1);
+    assert!(!app.dlq_confirm_purge, "confirm purge should reset on Down");
+
+    app.dlq_confirm_purge = true;
+    app.handle_key(make_key(KeyCode::Up));
+    assert_eq!(app.dlq_selected, 0);
+    assert!(!app.dlq_confirm_purge, "confirm purge should reset on Up");
+
+    // Can't go below 0
+    app.handle_key(make_key(KeyCode::Up));
+    assert_eq!(app.dlq_selected, 0);
+}
+
+#[test]
+fn test_dlq_uppercase_n_cancels_purge() {
+    let mut app = App::new();
+    app.screen = Screen::Dlq;
+    app.dlq_confirm_purge = true;
+    app.handle_key(make_key(KeyCode::Char('N')));
+    assert!(!app.dlq_confirm_purge);
+}
+
+#[test]
+fn test_sagas_navigation_clears_expanded() {
+    let mut app = App::new();
+    app.screen = Screen::Sagas;
+    app.data.sagas = vec![
+        crate::client::SagaInfo {
+            saga_id: "s-1".to_string(),
+            saga_name: "order-saga".to_string(),
+            current_step: 1,
+            status: "Running".to_string(),
+        },
+        crate::client::SagaInfo {
+            saga_id: "s-2".to_string(),
+            saga_name: "payment-saga".to_string(),
+            current_step: 2,
+            status: "Running".to_string(),
+        },
+    ];
+    app.sagas_expanded = true;
+
+    app.handle_key(make_key(KeyCode::Down));
+    assert_eq!(app.sagas_selected, 1);
+    assert!(!app.sagas_expanded, "expanded should clear on Down");
+
+    app.sagas_expanded = true;
+    app.handle_key(make_key(KeyCode::Up));
+    assert_eq!(app.sagas_selected, 0);
+    assert!(!app.sagas_expanded, "expanded should clear on Up");
+}
+
+#[test]
+fn test_config_validate_key_sets_result() {
+    let mut app = App::new();
+    app.screen = Screen::Config;
+    assert!(app.config_validate_result.is_none());
+    // 'v' key tries to load triad.yaml; in test env it will fail, setting Some(Err(...))
+    app.handle_key(make_key(KeyCode::Char('v')));
+    assert!(app.config_validate_result.is_some());
+}
+
+#[test]
+fn test_patterns_resume_no_patterns_returns_none() {
+    let mut app = App::new();
+    app.screen = Screen::Patterns;
+    // No patterns loaded — 'r' key should return None
+    let action = app.handle_key(make_key(KeyCode::Char('r')));
+    assert!(matches!(action, Action::None));
+}
+
+#[test]
+fn test_patterns_replay_no_patterns_returns_none() {
+    let mut app = App::new();
+    app.screen = Screen::Patterns;
+    let action = app.handle_key(make_key(KeyCode::Char('x')));
+    assert!(matches!(action, Action::None));
+}
+
+// --- dlq.rs: render_confirm_popup (confirm_purge=true branch) ---
+
+#[test]
+fn test_render_dlq_confirm_purge_popup() {
+    let mut app = App::new();
+    app.screen = Screen::Dlq;
+    app.data.patterns = vec![crate::client::PatternInfo {
+        name: "orders".to_string(),
+        pattern_type: "outbox".to_string(),
+        status: "Running".to_string(),
+    }];
+    app.dlq_confirm_purge = true;
+    smoke_render(&mut app, 80, 24);
+}
+
+// --- sagas.rs: render_detail (expanded + non-empty), status_color arms ---
+
+#[test]
+fn test_render_sagas_expanded_with_detail() {
+    let mut app = App::new();
+    app.screen = Screen::Sagas;
+    // Cover Running, Completed, RolledBack, Cancelled, and unknown status color arms
+    app.data.sagas = vec![
+        crate::client::SagaInfo {
+            saga_id: "saga-0001".to_string(),
+            saga_name: "order-saga".to_string(),
+            current_step: 1,
+            status: "Running".to_string(),
+        },
+        crate::client::SagaInfo {
+            saga_id: "saga-0002".to_string(),
+            saga_name: "payment-saga".to_string(),
+            current_step: 3,
+            status: "Completed".to_string(),
+        },
+        crate::client::SagaInfo {
+            saga_id: "saga-0003".to_string(),
+            saga_name: "refund-saga".to_string(),
+            current_step: 2,
+            status: "RolledBack".to_string(),
+        },
+        crate::client::SagaInfo {
+            saga_id: "saga-0004".to_string(),
+            saga_name: "ship-saga".to_string(),
+            current_step: 0,
+            status: "Cancelled".to_string(),
+        },
+        crate::client::SagaInfo {
+            saga_id: "saga-0005".to_string(),
+            saga_name: "misc-saga".to_string(),
+            current_step: 0,
+            status: "Unknown".to_string(),
+        },
+    ];
+    app.sagas_selected = 0;
+    app.sagas_expanded = true;
+    smoke_render(&mut app, 120, 40);
+}
+
+// --- sagas.rs: render_detail selected index in bounds ---
+
+#[test]
+fn test_render_sagas_expanded_second_selected() {
+    let mut app = App::new();
+    app.screen = Screen::Sagas;
+    app.data.sagas = vec![
+        crate::client::SagaInfo {
+            saga_id: "saga-aaaa".to_string(),
+            saga_name: "first-saga".to_string(),
+            current_step: 1,
+            status: "Running".to_string(),
+        },
+        crate::client::SagaInfo {
+            saga_id: "saga-bbbb".to_string(),
+            saga_name: "second-saga".to_string(),
+            current_step: 2,
+            status: "Completed".to_string(),
+        },
+    ];
+    app.sagas_selected = 1;
+    app.sagas_expanded = true;
+    smoke_render(&mut app, 120, 40);
+}
+
+// --- config.rs: validate_result Some(Ok) branch ---
+
+#[test]
+fn test_render_config_validate_ok() {
+    let mut app = App::new();
+    app.screen = Screen::Config;
+    app.config_validate_result = Some(Ok("Configuration is valid".to_string()));
+    smoke_render(&mut app, 80, 24);
+}
+
+// --- config.rs: validate_result Some(Err) branch ---
+
+#[test]
+fn test_render_config_validate_err() {
+    let mut app = App::new();
+    app.screen = Screen::Config;
+    app.config_validate_result = Some(Err("Missing required field: brokers".to_string()));
+    smoke_render(&mut app, 80, 24);
+}
