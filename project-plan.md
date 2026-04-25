@@ -237,7 +237,7 @@ Full stub-implementation audit and wire-up:
 - [x] `#[traced_test]` on all pattern unit tests; happy-path tests assert no ERROR spans
 - [x] Prometheus metric counter assertions: outbox, eos, saga, webhook patterns
 - [x] Span attribute integration test (`test_spans.rs`): every span has `pattern_name` + `pipeline_name`
-- [ ] Commit Phase 8b and open PR → `main`
+- [x] Commit Phase 8b and open PR → `main` (PR #9 open)
 
 ---
 
