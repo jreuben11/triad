@@ -30,14 +30,14 @@ async fn test_outbox_insert_and_fetch_pending() {
     .expect("INSERT failed");
 
     let rows = sqlx::query(
-        "SELECT id, event_type, relay_status FROM triad.triad_outbox WHERE relay_status = 'pending'",
+        "SELECT id, event_type, status FROM triad.triad_outbox WHERE status = 'pending'",
     )
     .fetch_all(&pool)
     .await
     .expect("SELECT failed");
 
     assert_eq!(rows.len(), 1);
-    let status: String = rows[0].try_get("relay_status").unwrap();
+    let status: String = rows[0].try_get("status").unwrap();
     assert_eq!(status, "pending");
     let event_type: String = rows[0].try_get("event_type").unwrap();
     assert_eq!(event_type, "OrderCreated");
@@ -60,7 +60,7 @@ async fn test_outbox_mark_published() {
     .expect("INSERT RETURNING failed");
 
     sqlx::query(
-        "UPDATE triad.triad_outbox SET relay_status = 'published', published_at = now()
+        "UPDATE triad.triad_outbox SET status = 'published', published_at = now()
          WHERE id = $1",
     )
     .bind(id)
@@ -68,12 +68,11 @@ async fn test_outbox_mark_published() {
     .await
     .expect("UPDATE failed");
 
-    let status: String =
-        sqlx::query_scalar("SELECT relay_status FROM triad.triad_outbox WHERE id = $1")
-            .bind(id)
-            .fetch_one(&pool)
-            .await
-            .expect("SELECT failed");
+    let status: String = sqlx::query_scalar("SELECT status FROM triad.triad_outbox WHERE id = $1")
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .expect("SELECT failed");
 
     assert_eq!(status, "published");
 }
@@ -99,7 +98,7 @@ async fn test_outbox_pending_index_used() {
     let count: i64 = timeout(
         Duration::from_secs(2),
         sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM triad.triad_outbox WHERE relay_status = 'pending'",
+            "SELECT COUNT(*) FROM triad.triad_outbox WHERE status = 'pending'",
         )
         .fetch_one(&pool),
     )

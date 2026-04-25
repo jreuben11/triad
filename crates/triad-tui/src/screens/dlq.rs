@@ -30,11 +30,17 @@ fn render_list(frame: &mut Frame, area: Rect, data: &AppData, selected: usize) {
     let mut items = vec![header];
     for (i, pattern) in data.patterns.iter().enumerate() {
         let topic = format!("triad.dlq.{}", pattern.name);
+        let count = data
+            .dlq
+            .iter()
+            .find(|d| d.topic == topic)
+            .map(|d| d.message_count)
+            .unwrap_or(0);
         let prefix = if i == selected { "▶" } else { " " };
         items.push(ListItem::new(Line::from(vec![
             Span::raw(format!("{} ", prefix)),
             Span::raw(format!("{:<40}", topic)),
-            Span::raw(format!("  {:>10}  ", "?")),
+            Span::raw(format!("  {:>10}  ", count)),
             Span::styled("[R]eplay", Style::default().fg(Color::Cyan)),
             Span::raw("  "),
             Span::styled("[P]urge", Style::default().fg(Color::Red)),

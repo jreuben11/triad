@@ -85,8 +85,10 @@ pub enum CheckpointCommand {
 
 #[derive(Subcommand)]
 pub enum DlqCommand {
-    /// List messages in a DLQ topic (triad.dlq.<topic>)
-    List {
+    /// List all DLQ topics with message counts
+    List,
+    /// List messages in a specific DLQ topic (triad.dlq.<topic>)
+    Messages {
         /// Source topic name
         topic: String,
     },
@@ -95,8 +97,9 @@ pub enum DlqCommand {
         /// Source topic name
         topic: String,
     },
-    /// Purge all messages from a DLQ topic
-    Purge {
+    /// Discard all DLQ messages for a topic (destructive)
+    #[command(alias = "purge")]
+    Drop {
         /// Source topic name
         topic: String,
     },
@@ -108,6 +111,22 @@ pub enum PipelineCommand {
     Reload {
         /// Pipeline name
         name: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum SagaCommand {
+    /// List in-flight sagas with step and state
+    List,
+    /// Print full saga state including step history
+    Inspect {
+        /// Saga ID
+        id: String,
+    },
+    /// Trigger compensation for a running saga
+    Cancel {
+        /// Saga ID
+        id: String,
     },
 }
 
@@ -155,7 +174,11 @@ pub async fn checkpoint(cmd: CheckpointCommand) -> Result<()> {
 pub async fn dlq(cmd: DlqCommand) -> Result<()> {
     let client = AdminClient::from_env();
     match cmd {
-        DlqCommand::List { topic } => {
+        DlqCommand::List => {
+            let result: Value = client.get("/dlq").await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        DlqCommand::Messages { topic } => {
             let result: Value = client.get(&format!("/dlq/{topic}")).await?;
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
@@ -163,9 +186,9 @@ pub async fn dlq(cmd: DlqCommand) -> Result<()> {
             client.post(&format!("/dlq/{topic}/replay")).await?;
             println!("DLQ replay triggered for topic '{topic}'.");
         }
-        DlqCommand::Purge { topic } => {
+        DlqCommand::Drop { topic } => {
             client.delete(&format!("/dlq/{topic}")).await?;
-            println!("DLQ purged for topic '{topic}'.");
+            println!("DLQ dropped for topic '{topic}'.");
         }
     }
     Ok(())
@@ -177,6 +200,25 @@ pub async fn pipeline(cmd: PipelineCommand) -> Result<()> {
         PipelineCommand::Reload { name } => {
             client.post(&format!("/pipelines/{name}/reload")).await?;
             println!("Pipeline '{name}' reload triggered.");
+        }
+    }
+    Ok(())
+}
+
+pub async fn saga(cmd: SagaCommand) -> Result<()> {
+    let client = AdminClient::from_env();
+    match cmd {
+        SagaCommand::List => {
+            let result: Value = client.get("/saga").await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        SagaCommand::Inspect { id } => {
+            let result: Value = client.get(&format!("/saga/{id}")).await?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        SagaCommand::Cancel { id } => {
+            client.post(&format!("/saga/{id}/cancel")).await?;
+            println!("Saga '{id}' cancel triggered.");
         }
     }
     Ok(())

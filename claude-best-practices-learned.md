@@ -128,6 +128,41 @@ Then launch atomically: `zellij action new-tab --name "<name>" -- /tmp/run-<name
   name-based navigation (`go-to-tab-name` is unreliable when tabs share names or rename is pending).
 - KDL layout files only work for *new* sessions. For in-session tab management use `zellij action`.
 
+### User preference: go-to-tab-name, not go-to-tab-by-id
+**Rule:** This user explicitly requires `zellij action go-to-tab-name <name>` for tab navigation,
+not `zellij action go-to-tab-by-id <id>`. If the user denies a `go-to-tab-by-id` call, switch
+to the name form immediately.
+**Why:** The user wants readable, stable navigation commands not dependent on tab ID numbers which change between sessions.
+
+### Poking idle agents: send explicit task description, not `/loop`
+**Rule:** When a QA/fix agent tab is idle (its `/loop` context expired), sending `/loop\n` via
+`write-chars` does NOT restart the loop — the agent has no prior task context and responds
+"No prompt was provided." Instead, send the full task description:
+```bash
+zellij action go-to-tab-name <tab>
+zellij action write-chars $'Re-verify the <surface> findings: read /tmp/qa-findings-<surface>.md (State is ALL_FIXED), re-run your adversarial tests against the fixes in feat/qa-fixes, and set State: PASSED for each verified finding.\n'
+```
+**Why:** `write-chars` sends keystrokes to the shell; without a prior loop prompt in context,
+the `/loop` skill has nothing to repeat.
+
+### QA agent /loop context loss after fix agents commit
+**Rule:** QA agents running in `/loop` may not automatically re-verify after a fix agent sets
+`State: ALL_FIXED`. When the loop iteration ends "naturally" (agent wrote findings file, task
+complete for this iteration), it may not schedule a ScheduleWakeup, causing the loop to die silently.
+**Fix:** Monitor findings files after fix agents complete. If QA agents don't re-verify within
+5 minutes, poke them manually with an explicit task description (see rule above).
+**Alternative:** Take manual control — read findings, run quality gate, set PASSED directly if
+the deferred findings are legitimately design gaps not worth another iteration.
+
+### maturin rebuild timing in QA loops
+**Rule:** After a Rust fix is committed to `feat/qa-fixes`, Python QA agents running `uv run maturin develop`
+may cache the old build. The "Verified: NO" state in `/tmp/qa-findings-py.md` may be a maturin
+timing issue rather than a real fix failure. If the fix agent's commit diff clearly shows the fix
+and the QA agent can't verify it after one rebuild attempt, accept the fix manually rather than
+iterating another cycle.
+**Fix:** Check `git -C <worktree> log --oneline -3` to confirm the fix commit exists, inspect the
+diff, then accept findings as PASSED with a note explaining the rebuild timing issue.
+
 ### Tab commands must use concrete paths
 **Rule:** Write-chars commands typed into a zellij tab run in a shell. Use absolute paths and
 `git -C` style — no `cd && git` patterns, no `${VAR}` expansion.
