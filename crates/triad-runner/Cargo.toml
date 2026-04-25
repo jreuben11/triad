@@ -127,6 +127,11 @@ name              = "test_admin_api"
 path              = "tests/test_admin_api.rs"
 required-features = ["integration"]
 
+[[test]]
+name              = "test_spans"
+path              = "tests/test_spans.rs"
+required-features = ["integration"]
+
 [dev-dependencies]
 mockall                = { workspace = true }
 rstest                 = { workspace = true }
@@ -134,3 +139,6 @@ tokio-test             = { workspace = true }
 testcontainers         = { workspace = true }
 testcontainers-modules = { workspace = true }
 wiremock               = { workspace = true }
+tracing-test           = "0.2"
+metrics-util           = { version = "0.17", features = ["debugging"] }
+serial_test            = "3"

@@ -1,7 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
+use metrics::counter;
 use tracing::{error, info, warn};
+use triad_core::metrics::names;
 use triad_core::{
     error::PatternError,
     traits::{PatternModule, RunContext},
@@ -194,6 +196,7 @@ impl EosCoordinator {
             {
                 error!(error = %e, "eos: send_message failed — aborting transaction");
                 self.transactor.abort_transaction().await?;
+                counter!(names::EOS_ABORTED_TOTAL).increment(1);
                 return Ok(EosOutcome::Aborted(e.to_string()));
             }
         }
@@ -201,10 +204,12 @@ impl EosCoordinator {
         if let Err(e) = self.transactor.send_offsets_to_transaction(offsets).await {
             error!(error = %e, "eos: send_offsets_to_transaction failed — aborting");
             self.transactor.abort_transaction().await?;
+            counter!(names::EOS_ABORTED_TOTAL).increment(1);
             return Ok(EosOutcome::Aborted(e.to_string()));
         }
 
         self.transactor.commit_transaction().await?;
+        counter!(names::EOS_COMMITTED_TOTAL).increment(1);
         info!("eos: transaction committed");
         Ok(EosOutcome::Committed)
     }
@@ -262,6 +267,7 @@ mod tests {
     use rstest::rstest;
     use std::sync::Arc;
     use tokio_util::sync::CancellationToken;
+    use tracing_test::traced_test;
     use triad_core::types::{PatternName, PipelineName};
 
     // ------------------------------------------------------------------
@@ -296,6 +302,7 @@ mod tests {
     // Happy path: Redis NX → full transaction in correct order
     // ------------------------------------------------------------------
 
+    #[traced_test]
     #[tokio::test]
     async fn test_eos_happy_path_redis_nx_commits_in_order() {
         let mut seq = Sequence::new();
@@ -334,12 +341,14 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(result, EosOutcome::Committed);
+        assert!(!logs_contain("ERROR"));
     }
 
     // ------------------------------------------------------------------
     // Duplicate via Redis NX (already processed)
     // ------------------------------------------------------------------
 
+    #[traced_test]
     #[tokio::test]
     async fn test_eos_duplicate_redis_nx_skips_transaction() {
         let mut tx = MockKafkaTransactor::new();
@@ -358,12 +367,14 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(result, EosOutcome::Duplicate);
+        assert!(!logs_contain("ERROR"));
     }
 
     // ------------------------------------------------------------------
     // Redis CB open → PG fallback path — transaction still fires
     // ------------------------------------------------------------------
 
+    #[traced_test]
     #[tokio::test]
     async fn test_eos_redis_cb_open_pg_fallback_new_event_commits() {
         let mut seq = Sequence::new();
@@ -399,6 +410,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(result, EosOutcome::Committed);
+        assert!(!logs_contain("ERROR"));
     }
 
     // ------------------------------------------------------------------
@@ -738,5 +750,87 @@ mod tests {
         };
         assert_eq!(off.partition, 1);
         assert_eq!(off.offset, 99);
+    }
+
+    // -- Prometheus metric assertions ------------------------------------------
+
+    #[test]
+    fn test_eos_committed_total_emitted_on_success() {
+        use metrics_util::debugging::DebuggingRecorder;
+
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, || {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(async {
+                    let mut tx = MockKafkaTransactor::new();
+                    tx.expect_begin_transaction().returning(|| Ok(()));
+                    tx.expect_send_message().returning(|_, _, _| Ok(()));
+                    tx.expect_send_offsets_to_transaction()
+                        .returning(|_| Ok(()));
+                    tx.expect_commit_transaction().returning(|| Ok(()));
+                    let mut redis = MockEosRedisDedup::new();
+                    redis.expect_is_circuit_open().return_const(false);
+                    redis.expect_set_nx().returning(|_, _| Ok(true));
+                    let pg = MockEosPgDedup::new();
+                    let coord = coordinator(Arc::new(tx), Arc::new(redis), Arc::new(pg));
+                    let out = coord
+                        .process_event("evt-metric", &make_messages(), &make_offsets())
+                        .await
+                        .unwrap();
+                    assert_eq!(out, EosOutcome::Committed);
+                });
+        });
+
+        let snap = snapshotter.snapshot();
+        let counters = snap.into_vec();
+        let found = counters
+            .iter()
+            .any(|(k, ..)| k.key().name() == names::EOS_COMMITTED_TOTAL);
+        assert!(found, "counter {} not emitted", names::EOS_COMMITTED_TOTAL);
+    }
+
+    #[test]
+    fn test_eos_aborted_total_emitted_on_send_failure() {
+        use metrics_util::debugging::DebuggingRecorder;
+
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, || {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(async {
+                    let mut tx = MockKafkaTransactor::new();
+                    tx.expect_begin_transaction().returning(|| Ok(()));
+                    tx.expect_send_message().returning(|_, _, _| {
+                        Err(PatternError::Backend(
+                            triad_core::error::BackendError::Kafka("fail".to_string()),
+                        ))
+                    });
+                    tx.expect_abort_transaction().returning(|| Ok(()));
+                    let mut redis = MockEosRedisDedup::new();
+                    redis.expect_is_circuit_open().return_const(false);
+                    redis.expect_set_nx().returning(|_, _| Ok(true));
+                    let pg = MockEosPgDedup::new();
+                    let coord = coordinator(Arc::new(tx), Arc::new(redis), Arc::new(pg));
+                    let out = coord
+                        .process_event("evt-abort", &make_messages(), &make_offsets())
+                        .await
+                        .unwrap();
+                    assert!(matches!(out, EosOutcome::Aborted(_)));
+                });
+        });
+
+        let snap = snapshotter.snapshot();
+        let counters = snap.into_vec();
+        let found = counters
+            .iter()
+            .any(|(k, ..)| k.key().name() == names::EOS_ABORTED_TOTAL);
+        assert!(found, "counter {} not emitted", names::EOS_ABORTED_TOTAL);
     }
 }

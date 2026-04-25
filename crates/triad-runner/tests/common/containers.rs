@@ -1,5 +1,6 @@
 use testcontainers::{ContainerAsync, runners::AsyncRunner};
 use testcontainers_modules::{kafka::Kafka, postgres::Postgres, redis::Redis};
+use tracing_subscriber::fmt;
 
 pub struct TestStack {
     pub pg_url: String,
@@ -12,6 +13,8 @@ pub struct TestStack {
 
 impl TestStack {
     pub async fn start() -> Self {
+        let _ = fmt().with_test_writer().try_init();
+
         let pg = Postgres::default()
             .with_user("triad")
             .with_password("secret")
@@ -73,6 +76,8 @@ pub struct PgStack {
 
 impl PgStack {
     pub async fn start() -> Self {
+        let _ = fmt().with_test_writer().try_init();
+
         let pg = Postgres::default()
             .with_user("triad")
             .with_password("secret")

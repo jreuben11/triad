@@ -7,6 +7,19 @@ use uuid::Uuid;
 pub struct EventId(pub Uuid);
 
 impl EventId {
+    /// Create a new time-ordered UUID v7 event identifier.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use triad_core::types::EventId;
+    ///
+    /// let id = EventId::new();
+    /// // Each call produces a distinct identifier.
+    /// assert_ne!(id, EventId::new());
+    /// // The underlying UUID is non-nil.
+    /// assert_ne!(id.0, uuid::Uuid::nil());
+    /// ```
     pub fn new() -> Self {
         Self(Uuid::now_v7())
     }
@@ -27,10 +40,24 @@ pub struct PatternName(pub String);
 pub struct PipelineName(pub String);
 
 /// Saga instance identifier — UUID v4.
+///
+/// # Examples
+///
+/// ```
+/// use triad_core::types::SagaId;
+///
+/// let id = SagaId::new();
+/// assert_ne!(id, SagaId::new());
+///
+/// // Construct from a known UUID for deterministic tests.
+/// let fixed = SagaId(uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap());
+/// assert_eq!(fixed.0.to_string(), "00000000-0000-0000-0000-000000000001");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SagaId(pub Uuid);
 
 impl SagaId {
+    /// Create a new random UUID v4 saga identifier.
     pub fn new() -> Self {
         Self(Uuid::new_v4())
     }
@@ -43,6 +70,26 @@ impl Default for SagaId {
 }
 
 /// Source position — unified across all backends.
+///
+/// # Examples
+///
+/// ```
+/// use triad_core::types::SourcePosition;
+///
+/// let pg = SourcePosition::PgLsn(12345);
+/// let kafka = SourcePosition::KafkaOffset {
+///     topic: "orders".to_string(),
+///     partition: 0,
+///     offset: 42,
+/// };
+/// let redis = SourcePosition::RedisWatermark(100);
+///
+/// // All variants serialize and deserialize cleanly.
+/// for pos in [&pg, &kafka, &redis] {
+///     let json = serde_json::to_string(pos).unwrap();
+///     let _: SourcePosition = serde_json::from_str(&json).unwrap();
+/// }
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SourcePosition {
     PgLsn(u64),
@@ -55,6 +102,26 @@ pub enum SourcePosition {
 }
 
 /// A change event emitted by the CDC module.
+///
+/// # Examples
+///
+/// ```
+/// use triad_core::types::{ChangeEvent, EventId, Operation};
+///
+/// let event = ChangeEvent {
+///     id: EventId::new(),
+///     table: "orders".to_string(),
+///     schema: "public".to_string(),
+///     operation: Operation::Insert,
+///     lsn: 9_999,
+///     occurred_at: chrono::Utc::now(),
+///     before: None,
+///     after: Some(serde_json::json!({"id": 1, "total": 42})),
+/// };
+///
+/// let json = serde_json::to_string(&event).unwrap();
+/// assert!(json.contains("orders"));
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChangeEvent {
     pub id: EventId,
