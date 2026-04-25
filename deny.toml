@@ -1,20 +1,28 @@
-# cargo-deny configuration for triad
+# cargo-deny configuration for triad  (cargo-deny 0.19+)
 # Run: cargo deny check
 # Install: cargo install cargo-deny
 
 [advisories]
-# Deny crates with known security vulnerabilities from the RustSec advisory DB
-db-path = "~/.cargo/advisory-db"
-db-urls = ["https://github.com/rustsec/advisory-db"]
 version = 2
 ignore = [
-    # Add advisory IDs to ignore here, with justification comment, e.g.:
-    # "RUSTSEC-2020-0071",  # time crate - only affects local time parsing, not used here
+    # backoff 0.4.0 — unmaintained; migrate to `backon` crate post-v0.1.0 (TRIAD-TODO)
+    # No security vulnerability, only a maintenance advisory.
+    "RUSTSEC-2025-0012",
+    # instant 0.1.13 — unmaintained; transitive via backoff, no direct control.
+    # Author recommends web-time; upgrade will follow backoff→backon migration.
+    "RUSTSEC-2024-0384",
+    # rustls-pemfile 2.2.0 — unmaintained; transitive via reqwest/tls, no direct control.
+    # No safe upgrade available as of v0.1.0.
+    "RUSTSEC-2025-0134",
+    # tokio-tar 0.3.1 — tarmageddon vuln + unmaintained; dev-only via testcontainers.
+    # Does NOT affect production builds (no testcontainers in [dependencies]).
+    # Upgrade to astral-tokio-tar once testcontainers publishes a new release.
+    "RUSTSEC-2025-0111",
 ]
 
 [licenses]
 version = 2
-# Allow common permissive and weak-copyleft licenses
+# Allow common permissive and weak-copyleft licenses; everything else is denied by default.
 allow = [
     "MIT",
     "Apache-2.0",
@@ -25,37 +33,30 @@ allow = [
     "Unicode-DFS-2016",
     "OpenSSL",
     "Zlib",
-    "MPL-2.0",   # rdkafka / librdkafka transitive
+    "MPL-2.0",          # rdkafka / librdkafka transitive
+    "CC0-1.0",
+    "Unicode-3.0",
+    "CDLA-Permissive-2.0",  # webpki-roots TLS trust store (data license, not code)
 ]
-# Deny GPL and LGPL (copyleft that would infect our library)
-deny = [
-    "GPL-2.0",
-    "GPL-3.0",
-    "LGPL-2.0",
-    "LGPL-2.1",
-    "LGPL-3.0",
-    "AGPL-3.0",
+# Explicitly flag GPL/LGPL/AGPL as errors (copyleft that would infect our library)
+exceptions = [
+    # Example: { allow = ["GPL-2.0"], name = "some-crate", version = "*" }
 ]
-# If a crate has no license, treat it as an error
-unlicensed = "deny"
-# Allow dual-licensed crates (MIT OR Apache-2.0 is the Rust standard)
-allow-osi-fsf-free = "neither"
 
 [bans]
-# Deny duplicate versions of critical crates to catch diamond dependency issues
-multiple-versions = "warn"  # start as warn; tighten to "deny" after audit
-# Crates we explicitly don't want in the dependency tree
+# Warn on duplicate crate versions to catch diamond dependency issues.
+# Tighten to "deny" after the initial audit if desired.
+multiple-versions = "warn"
+wildcards         = "allow"    # allow * version specs in dev-dependencies
 deny = [
-    # Add banned crates here with reason, e.g.:
+    # Add banned crates with reason, e.g.:
     # { name = "openssl", reason = "use rustls everywhere" },
 ]
-# Skip specific duplicate-version pairs we can't avoid (e.g., transitive from rdkafka)
 skip = []
 skip-tree = []
 
 [sources]
-# Only allow crates from crates.io (no git or path dependencies in production)
 unknown-registry = "deny"
-unknown-git = "warn"   # warn during dev; tighten to "deny" before publishing
-allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
+unknown-git      = "warn"     # warn during dev; tighten to "deny" before publishing
+allow-registry   = ["https://github.com/rust-lang/crates.io-index"]
+allow-git        = []

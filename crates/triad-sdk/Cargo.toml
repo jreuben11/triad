@@ -1,12 +1,16 @@
 [package]
-name        = "triad-sdk"
-description = "In-process SDK for embedding Triad patterns into Rust applications (Mode 1)"
-version.workspace     = true
-edition.workspace     = true
-authors.workspace     = true
-license.workspace     = true
-repository.workspace  = true
+name           = "triad-sdk"
+description    = "In-process SDK for embedding Triad patterns into Rust applications (Mode 1)"
+version.workspace      = true
+edition.workspace      = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
 rust-version.workspace = true
+
+# cargo-machete: futures used in async stream processing of aggregate event replay
+[package.metadata.cargo-machete]
+ignored = ["futures"]
 
 [dependencies]
 triad-core   = { path = "../triad-core" }

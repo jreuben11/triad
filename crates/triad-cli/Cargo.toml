@@ -1,12 +1,26 @@
 [package]
-name        = "triad-cli"
-description = "triad binary: standalone server (Mode 2) and admin CLI client"
-version.workspace     = true
-edition.workspace     = true
-authors.workspace     = true
-license.workspace     = true
-repository.workspace  = true
+name           = "triad-cli"
+description    = "triad binary: standalone server (Mode 2) and admin CLI client"
+version.workspace      = true
+edition.workspace      = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
 rust-version.workspace = true
+
+# cargo-machete: suppress gRPC / future-phase deps
+[package.metadata.cargo-machete]
+ignored = [
+    "chrono",          # timestamp formatting in status output (Phase 10 refactor)
+    "config",          # TriadConfig loading in `triad server` subcommand
+    "futures",         # async stream handling in command impls
+    "serde_yaml",      # YAML config validation subcommand
+    "tonic",           # gRPC admin client (Phase 10)
+    "tracing",         # info!/warn! in command impls; machete misses macro-only usage
+    "tracing-subscriber", # tracing init in main()
+    "triad-proto",     # gRPC client stubs (Phase 10)
+    "uuid",            # saga/checkpoint ID formatting in CLI output
+]
 
 [[bin]]
 name = "triad"

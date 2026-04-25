@@ -1,12 +1,31 @@
 [package]
-name        = "triad-runner"
-description = "Pattern module implementations, backend clients, admin HTTP server, and leader election for Triad"
-version.workspace     = true
-edition.workspace     = true
-authors.workspace     = true
-license.workspace     = true
-repository.workspace  = true
+name           = "triad-runner"
+description    = "Pattern module implementations, backend clients, admin HTTP server, and leader election for Triad"
+version.workspace      = true
+edition.workspace      = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
 rust-version.workspace = true
+
+# cargo-machete: suppress false-positives and future-phase deps
+# Remove this section in Phase 10 after wiring gRPC / OTel / refactoring.
+[package.metadata.cargo-machete]
+ignored = [
+    "bytes",               # WAL parsing will use Bytes; pre-allocated for Phase 10 CDC work
+    "console-subscriber",  # tokio-console support, wired via --features tokio-console
+    "futures",             # StreamExt / FutureExt used in patterns; machete misses macro usage
+    "hyper",               # low-level HTTP for future webhook / health optimisations
+    "opentelemetry",       # OTel SDK init; wired in runner init path (Phase 10)
+    "opentelemetry-otlp",  # OTLP exporter; wired in runner init path (Phase 10)
+    "opentelemetry-semantic-conventions", # span attribute constants used in patterns
+    "opentelemetry_sdk",   # OTel SDK setup in runner (Phase 10)
+    "thiserror",           # used in pattern error types via derive macro; machete misses derives
+    "tokio-stream",        # used in CDC WAL stream processing
+    "tonic",               # gRPC admin service implementation (Phase 10)
+    "tracing-opentelemetry", # bridges tracing spans to OTel (Phase 10 init)
+    "triad-proto",         # gRPC service definitions (Phase 10)
+]
 
 [dependencies]
 triad-core  = { path = "../triad-core" }

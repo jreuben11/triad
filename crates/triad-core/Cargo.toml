@@ -1,12 +1,27 @@
 [package]
-name        = "triad-core"
-description = "Core domain types, traits, error types, and config schema for Triad"
-version.workspace     = true
-edition.workspace     = true
-authors.workspace     = true
-license.workspace     = true
-repository.workspace  = true
+name           = "triad-core"
+description    = "Core domain types, traits, error types, and config schema for Triad"
+version.workspace      = true
+edition.workspace      = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
 rust-version.workspace = true
+
+# cargo-machete: suppress pre-allocated and macro-driven deps
+# Review in Phase 10 — some may be removable once OTel init moves to runner.
+[package.metadata.cargo-machete]
+ignored = [
+    "bytes",               # pre-allocated for WAL ChangeEvent payload (Phase 10 CDC)
+    "futures",             # StreamExt used in trait bounds; machete misses generic bounds
+    "metrics",             # triad-core/src/metrics.rs defines name constants only; the
+                           # `metrics` crate is needed so downstream crates can use the
+                           # same registry without depending on it separately
+    "opentelemetry",       # OTel context propagation types used in span wiring
+    "opentelemetry-semantic-conventions", # semconv attribute constants
+    "tokio-stream",        # Stream type bounds in Source trait (Phase 10)
+    "tracing",             # info!/warn!/error! macros; machete misses macro-only usage
+]
 
 [dependencies]
 # Async

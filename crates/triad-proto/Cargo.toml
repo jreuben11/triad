@@ -1,12 +1,21 @@
 [package]
-name        = "triad-proto"
-description = "Generated protobuf types and gRPC service definitions for Triad"
-version.workspace     = true
-edition.workspace     = true
-authors.workspace     = true
-license.workspace     = true
-repository.workspace  = true
+name           = "triad-proto"
+description    = "Generated protobuf types and gRPC service definitions for Triad"
+version.workspace      = true
+edition.workspace      = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
 rust-version.workspace = true
+
+# cargo-machete: these are all used by tonic_build-generated code and prost derives
+[package.metadata.cargo-machete]
+ignored = [
+    "prost",       # #[derive(prost::Message)] in generated code
+    "prost-types", # google.protobuf.Timestamp in generated code
+    "serde",       # #[derive(serde::Serialize, serde::Deserialize)] on proto types
+    "serde_json",  # JSON serialization of proto messages
+]
 
 [dependencies]
 prost       = { workspace = true }
