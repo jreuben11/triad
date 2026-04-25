@@ -183,3 +183,4 @@ wiremock               = { workspace = true }
 tracing-test           = "0.2"
 metrics-util           = { version = "0.17", features = ["debugging"] }
 serial_test            = "3"
+proptest               = { workspace = true }
