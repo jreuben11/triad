@@ -124,6 +124,22 @@ fn build_repl_config(dsn: &str) -> Result<tokio_postgres::Config, tokio_postgres
     }
 }
 
+/// Apply all embedded migrations to the given database URL.
+///
+/// Opens a short-lived pool, runs every pending migration, then closes it.
+/// Idempotent: already-applied migrations are skipped.
+pub async fn run_migrations(pg_url: &str) -> Result<(), BackendError> {
+    let pool = sqlx::PgPool::connect(pg_url)
+        .await
+        .map_err(BackendError::Postgres)?;
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .map_err(|e| BackendError::Postgres(sqlx::Error::Protocol(e.to_string())))?;
+    pool.close().await;
+    Ok(())
+}
+
 /// Convert a `tokio_postgres::Error` into `BackendError` by wrapping it in an
 /// `std::io::Error` (compatible with `sqlx::Error::Io`).
 fn tp_to_backend(e: tokio_postgres::Error) -> BackendError {

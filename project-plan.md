@@ -299,9 +299,9 @@ Full stub-implementation audit and wire-up:
 - [x] Tag `v0.1.0`
 
 **Deferred to v0.2.0 (not blocking v0.1.0 tag):**
-- [ ] `triad migrate` CLI subcommand — sqlx migration runner
-- [ ] `triad version` CLI subcommand — print build info + config schema version
-- [ ] `triad lag` CLI subcommand — Kafka consumer group lag (admin HTTP endpoint `GET /lag` already implemented)
+- [x] `triad migrate` CLI subcommand — sqlx migration runner
+- [x] `triad version` CLI subcommand — print build info + config schema version
+- [x] `triad lag` CLI subcommand — Kafka consumer group lag (admin HTTP endpoint `GET /lag` already implemented)
 - [ ] gRPC admin server (`admin/grpc.rs`) — `triad-proto` definitions are ready; wire tonic service
 
 ---
