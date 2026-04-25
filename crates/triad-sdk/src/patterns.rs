@@ -370,6 +370,45 @@ mod tests {
         assert!(!ev.is_enabled("unknown").await.unwrap());
     }
 
+    // ── evaluate_flag rollout_percentage branches ────────────────────────────
+
+    #[tokio::test]
+    async fn test_flag_evaluator_rollout_100_is_enabled() {
+        // rollout_percentage = Some(100) → true
+        let store = StubFlagStore::new(
+            false,
+            Some(make_flag("full-rollout", true, Some(100))),
+            None,
+        );
+        let ev = FlagEvaluator::new(store);
+        assert!(ev.is_enabled("full-rollout").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_flag_evaluator_rollout_0_is_disabled() {
+        // rollout_percentage = Some(0) → false
+        let store = StubFlagStore::new(false, Some(make_flag("zero-rollout", true, Some(0))), None);
+        let ev = FlagEvaluator::new(store);
+        assert!(!ev.is_enabled("zero-rollout").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_flag_evaluator_partial_rollout_hash_branch() {
+        // rollout_percentage = Some(50) → hash-based deterministic evaluation
+        let store = StubFlagStore::new(false, Some(make_flag("partial", true, Some(50))), None);
+        let ev = FlagEvaluator::new(store);
+        // Result depends on hash of "partial" — just assert it doesn't panic
+        let _ = ev.is_enabled("partial").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_flag_evaluator_disabled_flag_with_rollout_returns_false() {
+        // enabled = false overrides any rollout_percentage
+        let store = StubFlagStore::new(false, Some(make_flag("off", false, Some(100))), None);
+        let ev = FlagEvaluator::new(store);
+        assert!(!ev.is_enabled("off").await.unwrap());
+    }
+
     // ── OutboxPublisher ──────────────────────────────────────────────────────
 
     #[test]

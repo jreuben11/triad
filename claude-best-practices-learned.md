@@ -700,3 +700,23 @@ separate file is unnecessary and breaks the "unit tests are inside the module" c
 either fails to compile or produces a deadlock. If the property requires async code, extract a
 pure sync helper and test that; or create a one-shot `tokio::runtime::Runtime` and call
 `rt.block_on(...)` inside the proptest body.
+
+---
+
+## Ratatui / TUI Coverage
+
+### Ratatui: use existing App render path for screen coverage, not per-module test modules
+**Rule:** When adding coverage for triad-tui screen render functions, adding tests directly
+to `app/tests.rs` (using the `smoke_render` helper) is simpler and less code than creating
+per-screen `#[cfg(test)] mod tests` blocks. The App `render()` delegates to all screens —
+set the relevant `App` fields and call `smoke_render`.
+**Fix:** Set `app.screen`, `app.data.*`, and any screen-specific state flags (`dlq_confirm_purge`,
+`sagas_expanded`, `config_validate_result`) before calling `smoke_render(&mut app, w, h)`.
+
+### Workspace coverage: triad-cli and triad-py drag down the total — don't try to test them
+**Rule:** `triad-cli/src/main.rs` (binary entrypoint) and `triad-py/src/` (PyO3 bindings)
+cannot be unit-tested without a live server or Python runtime respectively. Their 0% coverage
+is a known drag on workspace totals. Focus coverage gains on `triad-sdk` and `triad-tui` which
+have pure-Rust testable logic.
+**Fix:** To raise workspace coverage, target SDK (`aggregate.rs`, `patterns.rs`, `instance.rs`)
+and TUI screen files. Avoid wasting time trying to test binary main() or PyO3 extension init code.

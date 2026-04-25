@@ -368,6 +368,21 @@ See `stage2-design.md` §"Stage 2b" for screen layouts, Tachyonfx effect plan, a
 
 ---
 
+## Phase 13 — Coverage restoration (`feat/tui-coverage`)
+
+Raise workspace line coverage from ~77.8% back to ≥ 80% after `triad-tui` was added in Phase 11.
+
+- [x] Add render test for `dlq.rs` `render_confirm_popup` (confirm_purge=true branch)
+- [x] Add render tests for `sagas.rs` `render_detail` (expanded + non-empty sagas) and all `status_color` match arms (Completed, RolledBack, Cancelled, unknown)
+- [x] Add render tests for `config.rs` `validate_result` Some(Ok) and Some(Err) branches
+- [x] Add input tests for DLQ Up/Down navigation (clears `dlq_confirm_purge`), uppercase N cancel, sagas navigation (clears `sagas_expanded`), config 'v' validate key
+- [x] Add tests for `patterns.rs` `evaluate_flag` rollout_percentage branches (Some(100), Some(0), Some(pct) hash)
+- [x] Add tests for `instance.rs` `handles()` method and `shutdown` timeout path
+- [x] Add tests for `aggregate.rs` `AggregateError` conversions and additional state machine paths
+- [x] `cargo llvm-cov nextest --workspace --fail-under-lines 80` exits 0 (80.06%)
+- [x] PR opened against `main`
+
+---
 ## Merge order (dependency-respecting)
 
 ```

@@ -280,4 +280,54 @@ mod tests {
         root.apply_new(CounterEvent::Reset);
         assert_eq!(root.state.count, 0);
     }
+
+    #[test]
+    fn test_aggregate_error_from_serde_json_error() {
+        let bad_json = "not valid";
+        let err: Result<serde_json::Value, _> = serde_json::from_str(bad_json);
+        let agg_err = AggregateError::from(err.unwrap_err());
+        assert!(agg_err.to_string().contains("serialise"));
+    }
+
+    #[test]
+    fn test_aggregate_error_from_pattern_error() {
+        use triad_core::error::PatternError;
+        let pe = PatternError::Cancelled;
+        let agg_err = AggregateError::from(pe);
+        assert!(agg_err.to_string().contains("pattern"));
+    }
+
+    #[test]
+    fn test_rehydrate_sets_state_not_version() {
+        // rehydrate applies events but does NOT set version (only apply_new does)
+        let events = vec![
+            CounterEvent::Incremented { by: 10 },
+            CounterEvent::Incremented { by: 5 },
+        ];
+        let root = AggregateRoot::<Counter>::rehydrate("c1", events);
+        assert_eq!(root.state.count, 15);
+        // version stays 0 because rehydrate doesn't call set_version
+        assert_eq!(root.state.version(), 0);
+    }
+
+    #[test]
+    fn test_take_pending_events_clears_queue() {
+        let mut root = AggregateRoot::<Counter>::new("c1");
+        root.apply_new(CounterEvent::Incremented { by: 1 });
+        root.apply_new(CounterEvent::Incremented { by: 2 });
+        root.apply_new(CounterEvent::Incremented { by: 3 });
+        let events = root.take_pending_events();
+        assert_eq!(events.len(), 3);
+        // Second call should return empty
+        assert!(root.take_pending_events().is_empty());
+    }
+
+    #[test]
+    fn test_apply_new_after_rehydrate() {
+        let events = vec![CounterEvent::Incremented { by: 5 }];
+        let mut root = AggregateRoot::<Counter>::rehydrate("c1", events);
+        root.apply_new(CounterEvent::Incremented { by: 3 });
+        assert_eq!(root.state.count, 8);
+        assert_eq!(root.take_pending_events().len(), 1);
+    }
 }
