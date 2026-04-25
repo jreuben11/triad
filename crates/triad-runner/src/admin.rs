@@ -1049,8 +1049,7 @@ mod tests {
         let (status, body) = get_json(router, "/health/ready").await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(
-            body["backends"]["redis"]["status"],
-            "degraded",
+            body["backends"]["redis"]["status"], "degraded",
             "unreachable Redis must report degraded"
         );
         assert_eq!(body["status"], "degraded");

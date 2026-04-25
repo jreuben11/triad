@@ -7,6 +7,7 @@ members = [
     "crates/triad-runner",
     "crates/triad-cli",
     "crates/triad-tui",
+    "crates/triad-py",
 ]
 
 # ── Shared dependency versions ─────────────────────────────────────────────────
