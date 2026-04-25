@@ -217,6 +217,11 @@ tests/
 
 ### Property-based and fuzz targets
 - For parsing code (protobuf, config, WAL event decoding): add `proptest` or `cargo-fuzz` targets.
+- Property tests belong in a separate `mod prop_tests` block inside the existing `#[cfg(test)]` section (or in the existing `tests.rs` submodule). Do NOT create a separate file.
+- Add `proptest = { workspace = true }` to `[dev-dependencies]` (never to `[dependencies]`). The workspace root `Cargo.toml` already has the pinned version under `[workspace.dependencies]`.
+- Do NOT use `#[tokio::test]` for proptest — proptest runs sync. Use `tokio::runtime::Runtime::new().unwrap().block_on(...)` only if async is unavoidable; prefer extracting a pure sync helper function and testing that instead.
+- `prop_assert_eq!` and `prop_assert!` format strings cannot use Rust 2021 captured-variable syntax (`{var}`). Use explicit positional arguments: `prop_assert_eq!(a, b, "msg {} {}", var1, var2)`.
+- `serde_json::Value` equality on structs containing `f64` fields will fail for non-exact f64 values (shortest-repr serialization can differ by 1 ULP across two `to_string` calls). Fix by (a) restricting generated f64 to integer-valued ranges (`1u32..=10` cast to `f64`), or (b) comparing the serialized JSON *string* of the original vs the re-serialised round-tripped value, not two `Value` objects.
 
 ## Definition of done — pattern module
 

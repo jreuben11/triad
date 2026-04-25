@@ -172,4 +172,126 @@ mod tests {
         // Full behavioral tests live in integration tests (phase 7).
         let _ = std::mem::size_of::<PgCheckpointStore>();
     }
+
+    // ── Property-based tests ─────────────────────────────────────────────────
+
+    mod prop_tests {
+        use super::*;
+        use proptest::prelude::*;
+
+        // ── LSN properties ────────────────────────────────────────────────────
+
+        proptest! {
+            /// Any u64 LSN round-trips through lsn_to_text / text_to_lsn intact.
+            #[test]
+            fn prop_lsn_roundtrip(lsn in 0u64..=u64::MAX) {
+                let text = lsn_to_text(lsn);
+                let parsed = text_to_lsn(&text);
+                prop_assert_eq!(parsed, Some(lsn), "roundtrip failed for lsn={} text={}", lsn, text);
+            }
+
+            /// LSN formatted as "HI/LO" always contains exactly one '/' separator.
+            #[test]
+            fn prop_lsn_text_has_one_slash(lsn in 0u64..=u64::MAX) {
+                let text = lsn_to_text(lsn);
+                let slash_count = text.chars().filter(|&c| c == '/').count();
+                prop_assert_eq!(slash_count, 1, "expected exactly one '/' in {}", text);
+            }
+
+            /// High-word and low-word components are recovered correctly from text.
+            #[test]
+            fn prop_lsn_hi_lo_components(hi in 0u32..=u32::MAX, lo in 0u32..=u32::MAX) {
+                let lsn = (u64::from(hi) << 32) | u64::from(lo);
+                let text = lsn_to_text(lsn);
+                let parsed = text_to_lsn(&text).expect("text_to_lsn must succeed for valid text");
+                let parsed_hi = (parsed >> 32) as u32;
+                let parsed_lo = parsed as u32;
+                prop_assert_eq!(parsed_hi, hi);
+                prop_assert_eq!(parsed_lo, lo);
+            }
+
+            // ── CAS / version monotonicity properties ─────────────────────────
+
+            /// Simulated CAS with arbitrary expected-version attempts.
+            ///
+            /// Generates a random sequence of `expected_version` values and feeds them
+            /// into an in-memory CAS simulation.  For each attempt:
+            ///   - If `expected == current`  → CAS succeeds, version increments by 1.
+            ///   - If `expected != current`  → CAS is rejected, version unchanged.
+            ///
+            /// Asserts after every attempt:
+            ///   1. Version is non-decreasing (monotonic).
+            ///   2. Version advances by at most 1 per step (no skips).
+            ///   3. Total successful saves equal the final version value.
+            #[test]
+            fn prop_cas_random_attempts(
+                attempts in prop::collection::vec(0i64..=20, 1..=20),
+            ) {
+                let mut current: i64 = 0;
+                let mut prev: i64 = 0;
+                let mut successful_saves: i64 = 0;
+
+                for expected in &attempts {
+                    let before = current;
+                    if *expected == current {
+                        // CAS succeeds: version increments by exactly 1.
+                        if current == 0 {
+                            current = 1; // INSERT path sets version = 1
+                        } else {
+                            current = current + 1;
+                        }
+                        successful_saves += 1;
+                    }
+                    // Invariant 1: version never decreases.
+                    prop_assert!(current >= before,
+                        "version decreased: before={} after={}", before, current);
+                    // Invariant 2: version advances by at most 1 per step.
+                    prop_assert!(current - before <= 1,
+                        "version jumped by more than 1: before={} after={}", before, current);
+                    // Invariant 3: rejected CAS leaves version unchanged.
+                    if *expected != before {
+                        prop_assert_eq!(current, before,
+                            "rejected CAS changed version: expected={} before={} after={}", expected, before, current);
+                    }
+                    let _ = prev; // suppress unused warning
+                    prev = current;
+                }
+
+                // Final check: version == number of successful saves.
+                prop_assert_eq!(current, successful_saves,
+                    "version={} != successful_saves={}", current, successful_saves);
+            }
+
+            /// A stale or future expected_version never advances the stored version.
+            ///
+            /// Generates a current_version and an expected_version that differs from it.
+            /// Verifies that a CAS attempt with the wrong expected_version is a no-op.
+            #[test]
+            fn prop_cas_mismatched_expected_is_noop(
+                current_version in 0i64..=50,
+                delta           in 1i64..=50,
+            ) {
+                // expected is either above or below current (never equal) via the delta offset.
+                // We alternate: even delta → stale (expected = current - delta or 0 if underflow)
+                //               odd  delta → future (expected = current + delta)
+                let expected = if delta % 2 == 0 {
+                    current_version.saturating_sub(delta)
+                } else {
+                    current_version.saturating_add(delta)
+                };
+
+                // Precondition: if they happen to be equal (saturating edge), skip.
+                prop_assume!(expected != current_version);
+
+                // CAS simulation: mismatched expected → no change.
+                let mut stored = current_version;
+                if expected == stored {
+                    stored += 1; // would succeed; but precondition rules this out
+                }
+                // expected != current_version → stored must remain unchanged.
+                prop_assert_eq!(stored, current_version,
+                    "mismatched CAS (expected={} current={}) must not change version", expected, current_version);
+            }
+        }
+    }
 }

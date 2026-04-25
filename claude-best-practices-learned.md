@@ -669,3 +669,34 @@ client because workspace deps have fixed features.
 resolves all members regardless of order, but placing it after the established `crates/` members
 keeps `git diff` on Cargo.toml minimal and avoids confusing other tools.
 **Fix:** Append `"tests/load"` at the end of the `[workspace] members` array.
+
+---
+
+## Proptest + Nextest
+
+### `prop_assert_eq!` format strings cannot use Rust 2021 captured-variable syntax
+**Rule:** `prop_assert_eq!(a, b, "msg {var}")` fails at compile time with "there is no argument
+named `var`". The macro expands via `concat!`, which does not support captured-variable syntax.
+**Fix:** Use explicit positional args: `prop_assert_eq!(a, b, "msg {}", var)`.
+Same applies to `prop_assert!`.
+
+### `serde_json::Value` comparison fails for arbitrary f64 fields
+**Rule:** `serde_json::Value` equality on structs with `f64` fields (e.g. `RetryConfig::multiplier`)
+fails for arbitrary float inputs because `serde_json` uses shortest-repr serialization. Two calls
+to `serde_json::to_value(&v)` for the *same* struct can produce `Value::Number` objects with
+different string representations (`3.629...86` vs `3.629...9`), causing `==` to return false.
+**Fix:** Two options:
+  (a) Restrict generated f64 to integer-valued ranges (`1u32..=10` cast to `f64`) — exact in IEEE 754.
+  (b) Compare serialized JSON *strings* (`serde_json::to_string(&a) == serde_json::to_string(&b)`)
+      rather than `Value` objects. String-equality is stable within a single serde_json version.
+
+### Proptest belongs in `mod prop_tests` inside the existing test section — not a separate file
+**Rule:** Place proptest suites in `mod prop_tests { use super::*; use proptest::prelude::*; ... }`
+inside the existing `#[cfg(test)] mod tests { ... }` block (or in `tests.rs`). Creating a
+separate file is unnecessary and breaks the "unit tests are inside the module" convention.
+
+### Proptest is synchronous — do not use `#[tokio::test]`
+**Rule:** `proptest!` blocks run synchronously. Adding `#[tokio::test]` to a proptest function
+either fails to compile or produces a deadlock. If the property requires async code, extract a
+pure sync helper and test that; or create a one-shot `tokio::runtime::Runtime` and call
+`rt.block_on(...)` inside the proptest body.

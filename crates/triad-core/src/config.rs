@@ -602,4 +602,135 @@ circuit_breakers:
         assert_eq!(cfg.admin.auth.r#type, "none");
         assert!(cfg.admin.auth.token.is_none());
     }
+
+    // ── Property-based tests ─────────────────────────────────────────────────
+    // Uses serde_json::Value equality so that PartialEq derivation is not required
+    // on structs containing f64 fields (e.g. RetryConfig::multiplier).
+
+    mod prop_tests {
+        use super::*;
+        use proptest::prelude::*;
+
+        // Helper: round-trip a value through JSON serialization and deserialization.
+        // Returns the re-serialised JSON string of the deserialized value so callers
+        // can compare strings (avoids f64 precision issues in serde_json::Value eq).
+        fn json_roundtrip_string<T: serde::Serialize + serde::de::DeserializeOwned>(
+            v: &T,
+        ) -> String {
+            let serialized = serde_json::to_string(v).expect("serialize failed");
+            let deserialized: T = serde_json::from_str(&serialized).expect("deserialize failed");
+            serde_json::to_string(&deserialized).expect("re-serialize failed")
+        }
+
+        proptest! {
+            /// RetryConfig integer fields survive a JSON round-trip.
+            /// The f64 multiplier field is verified separately to handle floating-point
+            /// representation differences (serde_json uses shortest repr; two round-trips
+            /// of arbitrary f64 may yield distinct decimal strings for the same value).
+            #[test]
+            fn prop_retry_config_roundtrip(
+                max_attempts     in 1u32..=100,
+                initial_delay_ms in 0u64..=10_000,
+                max_delay_ms     in 1u64..=3_600_000,
+                // Use integer-valued multipliers (1..=10) so f64 is exact in JSON.
+                multiplier_int   in 1u32..=10,
+            ) {
+                let multiplier = f64::from(multiplier_int);
+                let cfg = RetryConfig { max_attempts, initial_delay_ms, max_delay_ms, multiplier };
+                let v = serde_json::to_value(&cfg).unwrap();
+                // Verify integer fields round-trip exactly.
+                prop_assert_eq!(v["max_attempts"].as_u64().unwrap(), u64::from(max_attempts));
+                prop_assert_eq!(v["initial_delay_ms"].as_u64().unwrap(), initial_delay_ms);
+                prop_assert_eq!(v["max_delay_ms"].as_u64().unwrap(), max_delay_ms);
+                // Verify full round-trip serialization produces identical JSON.
+                let rt_str = json_roundtrip_string(&cfg);
+                let orig_str = serde_json::to_string(&cfg).unwrap();
+                prop_assert_eq!(orig_str, rt_str);
+            }
+
+            /// CircuitBreakerConfig round-trips through JSON with all integer fields preserved.
+            #[test]
+            fn prop_circuit_breaker_config_roundtrip(
+                failure_threshold    in 1u32..=50,
+                success_threshold    in 1u32..=50,
+                timeout_ms           in 100u64..=300_000,
+                half_open_max_calls  in 1u32..=20,
+            ) {
+                let cfg = CircuitBreakerConfig {
+                    failure_threshold,
+                    success_threshold,
+                    timeout_ms,
+                    half_open_max_calls,
+                };
+                let orig_str = serde_json::to_string(&cfg).unwrap();
+                let rt_str = json_roundtrip_string(&cfg);
+                prop_assert_eq!(orig_str, rt_str);
+            }
+
+            /// OutboxPatternConfig round-trips through JSON with all field values preserved.
+            #[test]
+            fn prop_outbox_pattern_config_roundtrip(
+                name          in "[a-z][a-z0-9-]{0,30}",
+                table         in "[a-z][a-z0-9_]{0,20}",
+                kafka_topic   in "[a-z][a-z0-9.]{0,30}",
+            ) {
+                let cfg = OutboxPatternConfig {
+                    name,
+                    table,
+                    kafka_topic,
+                    outbox_retention: None,
+                };
+                let orig_str = serde_json::to_string(&cfg).unwrap();
+                let rt_str = json_roundtrip_string(&cfg);
+                prop_assert_eq!(orig_str, rt_str);
+            }
+
+            /// RetryConfig JSON value contains all expected keys with correct integer values.
+            #[test]
+            fn prop_retry_config_json_fields_present(
+                max_attempts     in 1u32..=100,
+                initial_delay_ms in 0u64..=10_000,
+                max_delay_ms     in 1u64..=3_600_000,
+                multiplier_int   in 1u32..=10,
+            ) {
+                let multiplier = f64::from(multiplier_int);
+                let cfg = RetryConfig { max_attempts, initial_delay_ms, max_delay_ms, multiplier };
+                let v = serde_json::to_value(&cfg).unwrap();
+                prop_assert_eq!(v["max_attempts"].as_u64().unwrap(), u64::from(max_attempts));
+                prop_assert_eq!(v["initial_delay_ms"].as_u64().unwrap(), initial_delay_ms);
+                prop_assert_eq!(v["max_delay_ms"].as_u64().unwrap(), max_delay_ms);
+                prop_assert_eq!(v["multiplier"].as_f64().unwrap(), multiplier);
+            }
+
+            /// CircuitBreakerConfig: all four fields survive a JSON round-trip.
+            #[test]
+            fn prop_circuit_breaker_failure_threshold_preserved(
+                failure_threshold   in 1u32..=100,
+                success_threshold   in 1u32..=20,
+                timeout_ms          in 1_000u64..=60_000,
+                half_open_max_calls in 1u32..=10,
+            ) {
+                let cfg = CircuitBreakerConfig {
+                    failure_threshold,
+                    success_threshold,
+                    timeout_ms,
+                    half_open_max_calls,
+                };
+                let v = serde_json::to_value(&cfg).unwrap();
+                prop_assert_eq!(
+                    v["failure_threshold"].as_u64().unwrap(),
+                    u64::from(failure_threshold)
+                );
+                prop_assert_eq!(
+                    v["success_threshold"].as_u64().unwrap(),
+                    u64::from(success_threshold)
+                );
+                prop_assert_eq!(v["timeout_ms"].as_u64().unwrap(), timeout_ms);
+                prop_assert_eq!(
+                    v["half_open_max_calls"].as_u64().unwrap(),
+                    u64::from(half_open_max_calls)
+                );
+            }
+        }
+    }
 }

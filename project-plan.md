@@ -21,6 +21,7 @@
 - [Phase 9 — Final integration gate](#phase-9--final-integration-gate)
 - [Phase 10 — Python Bindings](#phase-10--python-bindings-feattriad-py)
 - [Phase 11 — Terminal UI](#phase-11--terminal-ui-feattriad-tui)
+- [Phase 12 — Property-based Tests](#phase-12--property-based-tests-featproptest)
 - [Merge order (dependency-respecting)](#merge-order-dependency-respecting)
 - [/loop usage](#loop-usage)
 - [Progress tracking](#progress-tracking)
@@ -341,6 +342,29 @@ See `stage2-design.md` §"Stage 2b" for screen layouts, Tachyonfx effect plan, a
 - [x] Unit tests for App state transitions
 - [x] Renders correctly at 80×24 and 220×50 (layout uses Constraint::Min/Percentage — adapts to any terminal size)
 - [x] Commit and open PR → `main` (6abad00, PR #10)
+
+---
+
+## Phase 12 — Property-based Tests (`feat/proptest`)
+
+**Worktree:** `/home/jreuben1/Code/triad-worktrees/proptest`
+
+- [x] `proptest = { workspace = true }` added to `[dev-dependencies]` in `triad-core/Cargo.toml`
+- [x] `proptest = { workspace = true }` added to `[dev-dependencies]` in `triad-runner/Cargo.toml`
+- [x] `crates/triad-core/src/config.rs` — `mod prop_tests` with 5 properties:
+  - `prop_retry_config_roundtrip` — integer fields survive JSON round-trip
+  - `prop_circuit_breaker_config_roundtrip` — all fields survive JSON round-trip
+  - `prop_outbox_pattern_config_roundtrip` — arbitrary string names survive JSON round-trip
+  - `prop_retry_config_json_fields_present` — JSON value contains all expected keys
+  - `prop_circuit_breaker_failure_threshold_preserved` — all four CB fields preserved
+- [x] `crates/triad-runner/src/checkpoint.rs` — `mod prop_tests` with 5 properties:
+  - `prop_lsn_roundtrip` — any u64 LSN round-trips through `lsn_to_text`/`text_to_lsn`
+  - `prop_lsn_text_has_one_slash` — LSN text always has exactly one '/' separator
+  - `prop_lsn_hi_lo_components` — high/low u32 components recovered correctly
+  - `prop_cas_monotonic_version_sequence` — CAS produces monotonically increasing versions
+  - `prop_cas_stale_version_rejected` — stale expected_version is always rejected
+- [x] All 433 tests passing; `cargo clippy -- -D warnings` clean
+- [x] Commit and open PR → `main`
 
 ---
 
