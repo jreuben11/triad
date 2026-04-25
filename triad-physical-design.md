@@ -6,6 +6,46 @@ Rust implementation of the Triad system design (`triad-system-design.md`). This 
 
 ---
 
+## Table of Contents
+
+- [§1 Workspace Layout](#1-workspace-layout)
+  - [§1.1 Directory Tree](#11-directory-tree)
+  - [§1.2 Crate Dependency Graph](#12-crate-dependency-graph)
+  - [§1.3 Feature Flags](#13-feature-flags)
+- [§2 `triad-proto`](#2-triad-proto)
+  - [§2.1 Proto File](#21-proto-file)
+  - [§2.2 `build.rs`](#22-buildrs)
+- [§3 `triad-core`](#3-triad-core)
+  - [§3.1 `types.rs` — Domain Types](#31-typesrs--domain-types)
+  - [§3.2 `traits.rs` — Core Traits](#32-traitsrs--core-traits)
+  - [§3.3 `error.rs` — Error Hierarchy](#33-errorrs--error-hierarchy)
+  - [§3.4 `config.rs` — Configuration Types](#34-configrs--configuration-types)
+  - [§3.5 `metrics.rs` — Typed Metric Helpers](#35-metricsrs--typed-metric-helpers)
+- [§4 `triad-runner`](#4-triad-runner)
+  - [§4.1 `backends/postgres.rs`](#41-backendspostgresrs)
+  - [§4.2 `backends/kafka.rs`](#42-backendskafkars)
+  - [§4.3 `backends/redis.rs`](#43-backendsredisrs)
+  - [§4.4 `backends/circuit_breaker.rs`](#44-backendscircuit_breakerrs)
+  - [§4.5 Pattern Modules](#45-pattern-modules)
+  - [§4.6 `engine.rs` — Pattern Engine](#46-enginers--pattern-engine)
+  - [§4.7 `runner.rs` — Runner FSM](#47-runnerrs--runner-fsm)
+  - [§4.8 `admin.rs` — Axum Admin Server](#48-adminrs--axum-admin-server)
+  - [§4.9 `leader.rs` — Leader Election](#49-leaderrs--leader-election)
+- [§5 `triad-sdk`](#5-triad-sdk)
+  - [§5.1 `instance.rs` — `TriadInstance` (Mode 1 entry point)](#51-instancers--triadinstance-mode-1-entry-point)
+  - [§5.2 `middleware.rs` — Tower Middleware](#52-middlewarers--tower-middleware)
+  - [§5.3 `patterns.rs` — SDK Facades](#53-patternsrs--sdk-facades)
+- [§6 `triad-cli`](#6-triad-cli)
+  - [§6.1 Clap Command Tree](#61-clap-command-tree)
+  - [§6.2 `commands/admin/mod.rs` — Admin Client](#62-commandsadminmodrs--admin-client-single-file-all-subcommands)
+- [§7 Database Schema](#7-database-schema)
+- [§8 Testing Structure](#8-testing-structure)
+  - [§8.1 Unit Tests](#81-unit-tests)
+  - [§8.2 Integration Tests](#82-integration-tests)
+  - [§8.3 Load Tests](#83-load-tests)
+
+---
+
 ## §1 Workspace Layout
 
 ### §1.1 Directory Tree

@@ -5,6 +5,28 @@
 
 ---
 
+## Table of Contents
+
+- [Worktree layout](#worktree-layout)
+- [Agent Launch Configuration](#agent-launch-configuration)
+- [Phase 0 — Foundation](#phase-0--foundation-no-dependencies-run-in-parallel)
+- [Phase 1 — Backends](#phase-1--backends-depends-on-phase-0-run-in-parallel-after-merge)
+- [Phase 2 — Pattern Modules](#phase-2--pattern-modules-depends-on-phase-1)
+- [Phase 3 — Engine + Runner + Shutdown](#phase-3--engine--runner--shutdown-depends-on-phase-2)
+- [Phase 4 — Admin HTTP + CLI](#phase-4--admin-http--cli-depends-on-phase-3-run-in-parallel)
+- [Phase 5 — SDK](#phase-5--sdk-depends-on-phase-1-can-run-in-parallel-with-phase-3)
+- [Phase 6 — Database Migrations](#phase-6--database-migrations-absorbed-into-phase-7--feattests-agent-owns-these)
+- [Phase 7 — Integration + Load Tests](#phase-7--integration--load-tests--feattests)
+- [Phase 8 — Bug Fixes](#phase-8--bug-fixes-featbugfixes)
+- [Phase 9 — Final integration gate](#phase-9--final-integration-gate)
+- [Phase 10 — Python Bindings](#phase-10--python-bindings-feattriad-py)
+- [Phase 11 — Terminal UI](#phase-11--terminal-ui-feattriad-tui)
+- [Merge order (dependency-respecting)](#merge-order-dependency-respecting)
+- [/loop usage](#loop-usage)
+- [Progress tracking](#progress-tracking)
+
+---
+
 ## Worktree layout
 
 | Worktree path | Branch | Agent strategy |

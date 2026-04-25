@@ -4,6 +4,32 @@ Triad is a **library + runner** that implements every integration pattern across
 
 ---
 
+## Table of Contents
+
+- [1. Design Goals](#1-design-goals)
+- [2. System Context](#2-system-context)
+- [3. Architecture Layers](#3-architecture-layers)
+- [4. Core Abstractions](#4-core-abstractions)
+- [5. The Library (SDK)](#5-the-library-sdk)
+- [6. The Runner (Daemon)](#6-the-runner-daemon)
+- [7. Pattern Modules](#7-pattern-modules)
+- [8. Key Cross-Cutting Flows](#8-key-cross-cutting-flows)
+- [9. Configuration Model](#9-configuration-model)
+- [10. Observability Model](#10-observability-model)
+- [11. Extension Points](#11-extension-points)
+- [12. Deployment Modes](#12-deployment-modes)
+- [13. Pattern Module Summary](#13-pattern-module-summary)
+- [14. Design Trade-offs and Open Questions](#14-design-trade-offs-and-open-questions)
+- [15. Metrics Capture (Logical Design)](#15-metrics-capture-logical-design)
+- [16. Error Handling Model](#16-error-handling-model)
+- [17. OpenTelemetry End-to-End Tracing](#17-opentelemetry-end-to-end-tracing)
+- [18. Configuration Reference (Full Logical Schema)](#18-configuration-reference-full-logical-schema)
+- [19. Test Suite Plan](#19-test-suite-plan)
+- [20. Durability Model](#20-durability-model)
+- [21. Observability Completeness](#21-observability-completeness)
+
+---
+
 ## 1. Design Goals
 
 | Goal | Description |

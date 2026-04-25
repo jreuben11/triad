@@ -1,5 +1,47 @@
 # Triad — Claude Code Instructions
 
+## Table of Contents
+
+- [Project summary](#project-summary)
+- [Workspace layout](#workspace-layout)
+- [Common commands](#common-commands)
+- [Security and quality tooling](#security-and-quality-tooling)
+- [Rust best practices for this project](#rust-best-practices-for-this-project)
+  - [Error handling](#error-handling)
+  - [Async](#async)
+  - [Traits and generics](#traits-and-generics)
+  - [Configuration](#configuration)
+  - [Observability](#observability)
+  - [Safety invariants — do not violate](#safety-invariants--do-not-violate)
+  - [Kubernetes feature flag](#kubernetes-feature-flag)
+- [Quality gate](#quality-gate--run-this-sequence-before-every-cargo-nextest-invocation-and-before-every-commit)
+- [Post-merge / post-rebase gate](#post-merge--post-rebase-gate--mandatory)
+- [Git workflow in this repo](#git-workflow-in-this-repo)
+- [Testing requirements](#testing-requirements)
+  - [Coverage target](#coverage-target)
+  - [Test organisation](#test-organisation)
+  - [Unit tests](#unit-tests)
+  - [Integration tests](#integration-tests)
+  - [Property-based and fuzz targets](#property-based-and-fuzz-targets)
+- [Key design documents](#key-design-documents)
+- [Deployment modes (summary)](#deployment-modes-summary)
+- [Admin API endpoints (port 8080)](#admin-api-endpoints-port-8080)
+- [Launching agents](#launching-agents)
+  - [Starting a phase](#starting-a-phase)
+  - [When to use /loop vs parallel agents](#when-to-use-loop-vs-parallel-agents)
+  - [Checking progress](#checking-progress)
+  - [Agent prompts](#agent-prompts)
+- [Self-optimisation instructions](#self-optimisation-instructions)
+- [End-of-phase introspective review (mandatory)](#end-of-phase-introspective-review-mandatory)
+  - [Process review](#process-review)
+  - [Design doc review](#design-doc-review)
+  - [Design/code/plan sync review (run at end of every phase)](#designcodeplan-sync-review-run-at-end-of-every-phase)
+  - [Codebase review](#codebase-review)
+  - [Tooling review](#tooling-review)
+  - [Output](#output)
+
+---
+
 ## Project summary
 
 Triad is a Rust library + runner implementing all PostgreSQL × Kafka × Redis integration patterns as composable, observable, exactly-once primitives. See `triad-system-design.md` for the conceptual design and `triad-physical-design.md` for the full implementation plan with code sketches.

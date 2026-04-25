@@ -4,6 +4,18 @@ The three technologies form a complementary triad that covers the core requireme
 
 ---
 
+## Table of Contents
+
+- [Technology Roles at a Glance](#technology-roles-at-a-glance)
+- [Part 1: PostgreSQL ↔ Kafka](#part-1-postgresql--kafka)
+- [Part 2: PostgreSQL ↔ Redis](#part-2-postgresql--redis)
+- [Part 3: Kafka ↔ Redis](#part-3-kafka--redis)
+- [Part 4: All Three Together — Full Triangle Patterns](#part-4-all-three-together--full-triangle-patterns)
+- [Part 5: Operational Patterns](#part-5-operational-patterns)
+- [Part 6: Anti-Patterns to Avoid](#part-6-anti-patterns-to-avoid)
+
+---
+
 ## Technology Roles at a Glance
 
 | Technology | Primary Role | Guarantees | Weakness |

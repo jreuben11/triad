@@ -1,5 +1,35 @@
 # Triad — Stage 2 Design: PyO3 Python Bindings
 
+## Table of Contents
+
+- [Goal](#goal)
+- [New crate: `crates/triad-py`](#new-crate-cratestriad-py)
+- [Build tooling](#build-tooling)
+- [Python package layout](#python-package-layout)
+- [API surface](#api-surface)
+  - [`TriadInstance`](#triadinstance)
+  - [`OutboxPublisher`](#outboxpublisher)
+  - [`FlagEvaluator`](#flagevaluator)
+  - [`SagaBuilder`](#sagabuilder)
+  - [`IdempotencyKey` / `IdempotencyRecord`](#idempotencykey--idempotencyrecord)
+  - [`AggregateRoot`](#aggregateroot)
+- [What is NOT wrapped](#what-is-not-wrapped)
+- [Async bridging notes](#async-bridging-notes)
+- [Done criteria](#done-criteria)
+- [Stage 2b — Terminal UI (`crates/triad-tui`)](#stage-2b--terminal-ui-cratestriad-tui)
+  - [Goal](#goal-1)
+  - [New crate: `crates/triad-tui`](#new-crate-cratestriad-tui)
+  - [Screen layouts](#screen-layouts)
+  - [Tachyonfx effect plan](#tachyonfx-effect-plan)
+  - [New CLI subcommand](#new-cli-subcommand)
+  - [Done criteria (TUI)](#done-criteria-tui)
+- [Stage 2 project-plan additions](#stage-2-project-plan-additions)
+  - [Phase 8 — Bug Fixes (`feat/bugfixes`)](#phase-8--bug-fixes-featbugfixes)
+  - [Phase 9 — Python bindings (`feat/triad-py`)](#phase-9--python-bindings-feattriad-py)
+  - [Phase 10 — Terminal UI (`feat/triad-tui`)](#phase-10--terminal-ui-feattriad-tui)
+
+---
+
 ## Goal
 
 Expose the `triad-sdk` surface as a native Python extension module (`triad`) so that
