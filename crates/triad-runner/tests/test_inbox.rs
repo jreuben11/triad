@@ -103,7 +103,10 @@ async fn test_inbox_pg_dedup_on_conflict_prevents_duplicate_row() {
     .rows_affected();
 
     assert_eq!(first, 1, "first insert must succeed");
-    assert_eq!(second, 0, "duplicate insert must be a no-op (ON CONFLICT DO NOTHING)");
+    assert_eq!(
+        second, 0,
+        "duplicate insert must be a no-op (ON CONFLICT DO NOTHING)"
+    );
 
     let count: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM triad.triad_inbox WHERE event_id = $1")
@@ -111,7 +114,10 @@ async fn test_inbox_pg_dedup_on_conflict_prevents_duplicate_row() {
             .fetch_one(&pool)
             .await
             .expect("COUNT failed");
-    assert_eq!(count, 1, "exactly one inbox record must exist after two deliveries");
+    assert_eq!(
+        count, 1,
+        "exactly one inbox record must exist after two deliveries"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +153,11 @@ async fn test_inbox_same_event_twice_processed_exactly_once() {
         .query_async(&mut conn)
         .await
         .expect("SET NX 1 failed");
-    assert_eq!(r1, Some("OK".to_string()), "first delivery: Redis NX must succeed");
+    assert_eq!(
+        r1,
+        Some("OK".to_string()),
+        "first delivery: Redis NX must succeed"
+    );
 
     // store_and_handle: INSERT into triad_inbox (atomically with handler in prod).
     let rows1 = sqlx::query(
@@ -234,7 +244,10 @@ async fn test_inbox_pg_fallback_when_redis_circuit_breaker_open() {
             .fetch_optional(&pool)
             .await
             .expect("SELECT 2 failed");
-    assert!(existing2.is_some(), "event must be found in PG fallback dedup check");
+    assert!(
+        existing2.is_some(),
+        "event must be found in PG fallback dedup check"
+    );
 
     // PG fallback dedup caught the duplicate — count must still be 1.
     let count: i64 =
@@ -243,7 +256,10 @@ async fn test_inbox_pg_fallback_when_redis_circuit_breaker_open() {
             .fetch_one(&pool)
             .await
             .expect("COUNT failed");
-    assert_eq!(count, 1, "PG fallback must result in exactly one inbox record");
+    assert_eq!(
+        count, 1,
+        "PG fallback must result in exactly one inbox record"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -294,7 +310,10 @@ async fn test_inbox_redis_dedup_key_expires_and_event_becomes_reprocessable() {
         .query_async(&mut conn)
         .await
         .expect("within-TTL SET NX failed");
-    assert_eq!(r2, None, "within the dedup window, duplicate must be rejected");
+    assert_eq!(
+        r2, None,
+        "within the dedup window, duplicate must be rejected"
+    );
 
     // After TTL expires: key is gone, same event_id is treated as new.
     tokio::time::sleep(Duration::from_secs(2)).await;

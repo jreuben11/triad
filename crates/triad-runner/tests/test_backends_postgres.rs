@@ -4,10 +4,7 @@ mod common;
 
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
-use triad_core::{
-    config::PostgresConfig,
-    error::BackendError,
-};
+use triad_core::{config::PostgresConfig, error::BackendError};
 use triad_runner::backends::{CbConfig, CbState, PgBackend};
 
 fn test_cb_config() -> CbConfig {

@@ -18,6 +18,10 @@ ignore = [
     # Does NOT affect production builds (no testcontainers in [dependencies]).
     # Upgrade to astral-tokio-tar once testcontainers publishes a new release.
     "RUSTSEC-2025-0111",
+    # paste 1.0.15 — unmaintained (author archived repo); transitive via ratatui→tachyonfx.
+    # No safe upgrade: tachyonfx 0.7 pins ratatui 0.28.1 which pulls paste.
+    # Re-evaluate when tachyonfx publishes a new release using an updated ratatui.
+    "RUSTSEC-2024-0436",
 ]
 
 [licenses]

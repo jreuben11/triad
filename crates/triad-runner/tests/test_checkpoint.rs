@@ -32,7 +32,10 @@ async fn test_checkpoint_load_returns_none_on_empty() {
         .await
         .expect("load failed");
 
-    assert!(result.is_none(), "fresh DB must return None for unknown checkpoint");
+    assert!(
+        result.is_none(),
+        "fresh DB must return None for unknown checkpoint"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -73,7 +76,10 @@ async fn test_checkpoint_save_and_load_roundtrip() {
         .expect("load after save failed")
         .expect("checkpoint must exist after save");
 
-    assert_eq!(loaded.version, 1, "version must be incremented to 1 after INSERT");
+    assert_eq!(
+        loaded.version, 1,
+        "version must be incremented to 1 after INSERT"
+    );
     assert_eq!(loaded.redis_watermark, Some(99));
     assert_eq!(loaded.owner_instance_id, "test-instance");
 }

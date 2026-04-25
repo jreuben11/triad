@@ -232,8 +232,8 @@ Launch: `/zellij-launch phase 3` → switch to `phase3-engine` tab → type `/lo
 - [x] `crates/triad-runner/tests/test_feature_flag.rs` — PG → Redis hot reload (5s deadline)
 - [x] `crates/triad-runner/tests/test_admin_api.rs` — all HTTP endpoints
 - [x] `crates/triad-runner/tests/test_spans.rs` — span attribute assertions
-- [ ] `crates/triad-runner/tests/test_inbox.rs` — same event delivered twice → processed once (3s deadline)
-- [ ] `crates/triad-runner/tests/test_circuit_breaker.rs` — Redis failures → CB opens → fallback to PG (10s deadline)
+- [x] `crates/triad-runner/tests/test_inbox.rs` — same event delivered twice → processed once (3s deadline)
+- [x] `crates/triad-runner/tests/test_circuit_breaker.rs` — Redis failures → CB opens → fallback to PG (10s deadline)
 - [ ] `tests/load/outbox_throughput.js` — k6: 10,000 events/s for 60s
 - [ ] `tests/load/saga_throughput.js` — k6: 1,000 sagas/s for 30s
 - [ ] `tests/load/cache_read.js` — k6: 5,000 reads/s; cache hit > 95%

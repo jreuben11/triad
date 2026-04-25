@@ -28,10 +28,7 @@ fn cb(failure_threshold: u32, success_threshold: u32, half_open_ms: u64) -> Circ
 /// Drives a real Redis WRONGTYPE error through the CB.
 /// Strategy: LPUSH on a key that was SET as a STRING → Redis returns WRONGTYPE error
 /// → CB records a failure. After `failure_threshold` calls, CB transitions to Open.
-async fn fail_via_cb(
-    circuit_breaker: &CircuitBreaker,
-    conn: redis::aio::MultiplexedConnection,
-) {
+async fn fail_via_cb(circuit_breaker: &CircuitBreaker, conn: redis::aio::MultiplexedConnection) {
     let mut c = conn.clone();
     let _ = circuit_breaker
         .call(async move {
@@ -197,7 +194,10 @@ async fn test_cb_recovers_from_open_to_closed_via_half_open() {
     tokio::time::sleep(Duration::from_millis(150)).await;
 
     let r1 = ok_via_cb(&breaker, conn.clone()).await;
-    assert!(r1.is_ok(), "first probe must succeed (transitions to HalfOpen)");
+    assert!(
+        r1.is_ok(),
+        "first probe must succeed (transitions to HalfOpen)"
+    );
 
     let r2 = ok_via_cb(&breaker, conn.clone()).await;
     assert!(r2.is_ok(), "second probe must succeed");
@@ -273,9 +273,7 @@ async fn test_cb_open_inbox_falls_back_to_pg_dedup() {
     use common::containers::PgStack;
 
     let pg = PgStack::start().await;
-    let pg_pool = sqlx::PgPool::connect(&pg.pg_url)
-        .await
-        .expect("pg connect");
+    let pg_pool = sqlx::PgPool::connect(&pg.pg_url).await.expect("pg connect");
 
     let (mut conn, _node) = redis_conn().await;
     seed_string_key(&mut conn).await;

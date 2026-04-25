@@ -156,7 +156,11 @@ async fn test_admin_inspect_saga_bad_uuid_with_pg_pool() {
     let resp = reqwest::get(format!("http://127.0.0.1:{port}/saga/not-a-uuid"))
         .await
         .expect("GET /saga/:id failed");
-    assert_eq!(resp.status().as_u16(), 404, "non-UUID saga ID must return 404");
+    assert_eq!(
+        resp.status().as_u16(),
+        404,
+        "non-UUID saga ID must return 404"
+    );
     cancel.cancel();
 }
 
@@ -196,7 +200,11 @@ async fn test_admin_cancel_saga_bad_uuid_with_pg_pool() {
         .send()
         .await
         .expect("POST /saga/:id/cancel failed");
-    assert_eq!(resp.status().as_u16(), 404, "non-UUID saga cancel must return 404");
+    assert_eq!(
+        resp.status().as_u16(),
+        404,
+        "non-UUID saga cancel must return 404"
+    );
     cancel.cancel();
 }
 
@@ -218,6 +226,10 @@ async fn test_admin_cancel_saga_valid_uuid_not_found_with_pg_pool() {
         .send()
         .await
         .expect("POST /saga/:id/cancel failed");
-    assert_eq!(resp.status().as_u16(), 404, "cancel of non-existent saga must return 404");
+    assert_eq!(
+        resp.status().as_u16(),
+        404,
+        "cancel of non-existent saga must return 404"
+    );
     cancel.cancel();
 }

@@ -133,17 +133,59 @@ triad/                                  ← workspace root
 │   │       ├── test_webhook.rs
 │   │       ├── test_feature_flag.rs
 │   │       ├── test_admin_api.rs
-│   │       └── test_spans.rs
-│   └── triad-cli/                      ← triad binary (Mode 2 server + admin client)
+│   │       ├── test_spans.rs
+│   │       ├── test_inbox.rs
+│   │       ├── test_circuit_breaker.rs
+│   │       ├── test_checkpoint.rs
+│   │       └── test_backends_postgres.rs
+│   ├── triad-cli/                      ← triad binary (Mode 2 server + admin client)
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       ├── main.rs
+│   │       └── commands/
+│   │           ├── mod.rs
+│   │           ├── run.rs              ← `triad run` (loads config, starts Runner)
+│   │           ├── config.rs           ← `triad config validate`
+│   │           ├── tui.rs              ← `triad tui` (launches triad-tui binary)
+│   │           └── admin/
+│   │               └── mod.rs          ← AdminClient + all subcommand handlers
+│   ├── triad-py/                       ← PyO3 Python bindings for triad-sdk (Phase 10)
+│   │   ├── Cargo.toml
+│   │   ├── pyproject.toml              ← maturin build config
+│   │   ├── python/triad/               ← Python package + type stubs
+│   │   │   ├── __init__.py
+│   │   │   ├── __init__.pyi
+│   │   │   ├── _aggregate.py
+│   │   │   └── py.typed
+│   │   ├── src/
+│   │   │   ├── lib.rs
+│   │   │   ├── instance.rs
+│   │   │   ├── aggregate.rs
+│   │   │   ├── flags.rs
+│   │   │   ├── idempotency.rs
+│   │   │   ├── outbox.rs
+│   │   │   └── saga.rs
+│   │   └── tests/                      ← pytest suite (45 tests)
+│   └── triad-tui/                      ← Ratatui terminal dashboard (Phase 11)
 │       ├── Cargo.toml
 │       └── src/
 │           ├── main.rs
-│           └── commands/
+│           ├── app.rs                  ← App state + event loop
+│           ├── client.rs               ← AdminClient HTTP poller
+│           ├── effects.rs              ← Tachyonfx effect constructors
+│           ├── screens/
+│           │   ├── mod.rs
+│           │   ├── dashboard.rs
+│           │   ├── patterns.rs
+│           │   ├── dlq.rs
+│           │   ├── checkpoints.rs
+│           │   ├── sagas.rs
+│           │   └── config.rs
+│           └── widgets/
 │               ├── mod.rs
-│               ├── run.rs              ← `triad run` (loads config, starts Runner)
-│               ├── config.rs           ← `triad config validate`
-│               └── admin/
-│                   └── mod.rs          ← AdminClient + all subcommand handlers
+│               ├── lag_bar.rs
+│               ├── status_badge.rs
+│               └── key_help.rs
 └── tests/
     └── load/                           ← k6 load scenarios (not yet created — Phase 9+)
         ├── outbox_throughput.js        ← 10,000 events/s for 60s
