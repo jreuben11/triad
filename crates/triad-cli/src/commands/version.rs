@@ -2,6 +2,7 @@ use anyhow::Result;
 
 pub fn version() -> Result<()> {
     println!("triad       {}", env!("CARGO_PKG_VERSION"));
+    println!("rustc       {}", env!("RUSTC_VERSION"));
     println!(
         "os/arch     {}/{}",
         std::env::consts::OS,
