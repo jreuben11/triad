@@ -74,7 +74,7 @@ async fn test_cache_cold_start_populates_redis_from_pg() {
 
     // Simulate: write a row to PG.
     sqlx::query(
-        "INSERT INTO triad.feature_flags (name, enabled, rollout_pct)
+        "INSERT INTO triad_feature_flags (name, enabled, rollout_percentage)
          VALUES ('new-checkout', true, 100)",
     )
     .execute(&pg_pool)
@@ -83,7 +83,7 @@ async fn test_cache_cold_start_populates_redis_from_pg() {
 
     // Cold start: load from PG and push to Redis (simulated inline).
     let (flag_name, enabled): (String, bool) =
-        sqlx::query_as("SELECT name, enabled FROM triad.feature_flags WHERE name = 'new-checkout'")
+        sqlx::query_as("SELECT name, enabled FROM triad_feature_flags WHERE name = 'new-checkout'")
             .fetch_one(&pg_pool)
             .await
             .expect("SELECT flag failed");
@@ -130,7 +130,7 @@ async fn test_cache_eviction_falls_back_to_pg() {
 
     // Write to PG.
     sqlx::query(
-        "INSERT INTO triad.feature_flags (name, enabled, rollout_pct)
+        "INSERT INTO triad_feature_flags (name, enabled, rollout_percentage)
          VALUES ('beta-ui', false, 10)",
     )
     .execute(&pg_pool)
@@ -150,7 +150,7 @@ async fn test_cache_eviction_falls_back_to_pg() {
 
     // Fallback: read from PG.
     let (enabled,): (bool,) =
-        sqlx::query_as("SELECT enabled FROM triad.feature_flags WHERE name = 'beta-ui'")
+        sqlx::query_as("SELECT enabled FROM triad_feature_flags WHERE name = 'beta-ui'")
             .fetch_one(&pg_pool)
             .await
             .expect("PG fallback failed");

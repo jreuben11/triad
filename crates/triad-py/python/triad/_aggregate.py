@@ -27,6 +27,7 @@ Example::
 """
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 
 class Aggregate(ABC):
@@ -46,6 +47,6 @@ class Aggregate(ABC):
         ...
 
     @abstractmethod
-    def apply(self, event: dict) -> None:
+    def apply(self, event: dict[str, Any]) -> None:
         """Apply a single event, mutating internal state."""
         ...
