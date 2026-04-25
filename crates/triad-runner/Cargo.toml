@@ -165,6 +165,16 @@ name              = "test_circuit_breaker"
 path              = "tests/test_circuit_breaker.rs"
 required-features = ["integration"]
 
+[[test]]
+name              = "test_checkpoint"
+path              = "tests/test_checkpoint.rs"
+required-features = ["integration"]
+
+[[test]]
+name              = "test_backends_postgres"
+path              = "tests/test_backends_postgres.rs"
+required-features = ["integration"]
+
 [dev-dependencies]
 mockall                = { workspace = true }
 rstest                 = { workspace = true }

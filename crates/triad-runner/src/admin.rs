@@ -1008,4 +1008,51 @@ mod tests {
             tokio::time::timeout(std::time::Duration::from_secs(1), server.serve(cancel)).await;
         assert!(result.is_ok());
     }
+
+    // ── Builder / setter coverage ─────────────────────────────────────────────
+
+    #[test]
+    fn test_admin_state_builder_field_setters() {
+        let (tx, _rx) = tokio::sync::mpsc::channel::<PatternControl>(1);
+        let state = AdminState::new()
+            .with_kafka_brokers("localhost:9092")
+            .with_redis_url("redis://localhost:6379")
+            .with_control_tx(tx)
+            .with_config_path("/tmp/triad.yaml");
+        assert_eq!(state.kafka_brokers.as_deref(), Some("localhost:9092"));
+        assert_eq!(state.redis_url.as_deref(), Some("redis://localhost:6379"));
+        assert!(state.control_tx.is_some());
+        assert_eq!(state.config_path.as_deref(), Some("/tmp/triad.yaml"));
+    }
+
+    #[test]
+    fn test_admin_state_default_impl() {
+        let _state = AdminState::default();
+    }
+
+    // ── Mutation endpoint coverage ────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_cancel_saga_no_pool_returns_accepted() {
+        let router = admin_router(test_state());
+        let status = post_status(router, "/saga/test-saga-id/cancel").await;
+        assert_eq!(status, StatusCode::ACCEPTED);
+    }
+
+    // ── Backend health degraded path coverage ─────────────────────────────────
+
+    #[tokio::test]
+    async fn test_ready_with_bad_redis_url_shows_degraded() {
+        // Port 1 is always refused, so check_redis_health returns "degraded" quickly.
+        let state = AdminState::new().with_redis_url("redis://127.0.0.1:1");
+        let router = admin_router(state);
+        let (status, body) = get_json(router, "/health/ready").await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            body["backends"]["redis"]["status"],
+            "degraded",
+            "unreachable Redis must report degraded"
+        );
+        assert_eq!(body["status"], "degraded");
+    }
 }

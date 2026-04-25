@@ -1,14 +1,20 @@
 #![cfg(feature = "integration")]
 
+mod common;
+
 use std::time::Duration;
 
+use common::containers::PgStack;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use triad_runner::admin::{AdminServer, AdminState};
 
 async fn start_admin_server() -> (u16, CancellationToken) {
+    start_admin_server_with_state(AdminState::new()).await
+}
+
+async fn start_admin_server_with_state(state: AdminState) -> (u16, CancellationToken) {
     let cancel = CancellationToken::new();
-    let state = AdminState::new();
     let port = {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         listener.local_addr().unwrap().port()
@@ -128,5 +134,90 @@ async fn test_admin_all_health_routes_smoke() {
         );
     }
 
+    cancel.cancel();
+}
+
+// ---------------------------------------------------------------------------
+// PG-backed admin tests — cover inspect_saga / cancel_saga code paths that
+// require a pool to be configured.
+// ---------------------------------------------------------------------------
+
+/// inspect_saga with a pool configured and a non-UUID path parameter must
+/// return 404 (UUID parse error branch — lines 695-703 in admin.rs).
+#[tokio::test]
+async fn test_admin_inspect_saga_bad_uuid_with_pg_pool() {
+    let stack = PgStack::start().await;
+    let pool = sqlx::PgPool::connect(&stack.pg_url)
+        .await
+        .expect("pg connect");
+    let state = AdminState::new().with_pg_pool(pool);
+    let (port, cancel) = start_admin_server_with_state(state).await;
+
+    let resp = reqwest::get(format!("http://127.0.0.1:{port}/saga/not-a-uuid"))
+        .await
+        .expect("GET /saga/:id failed");
+    assert_eq!(resp.status().as_u16(), 404, "non-UUID saga ID must return 404");
+    cancel.cancel();
+}
+
+/// inspect_saga with a pool and a valid UUID that doesn't exist in the DB
+/// must return 404 (SQL None path — lines 705-729 in admin.rs).
+#[tokio::test]
+async fn test_admin_inspect_saga_valid_uuid_not_found_with_pg_pool() {
+    let stack = PgStack::start().await;
+    let pool = sqlx::PgPool::connect(&stack.pg_url)
+        .await
+        .expect("pg connect");
+    let state = AdminState::new().with_pg_pool(pool);
+    let (port, cancel) = start_admin_server_with_state(state).await;
+
+    let id = uuid::Uuid::new_v4();
+    let resp = reqwest::get(format!("http://127.0.0.1:{port}/saga/{id}"))
+        .await
+        .expect("GET /saga/:id failed");
+    assert_eq!(resp.status().as_u16(), 404, "missing saga must return 404");
+    cancel.cancel();
+}
+
+/// cancel_saga with a pool configured and a non-UUID ID must return 404
+/// (UUID parse error branch — lines 748-756 in admin.rs).
+#[tokio::test]
+async fn test_admin_cancel_saga_bad_uuid_with_pg_pool() {
+    let stack = PgStack::start().await;
+    let pool = sqlx::PgPool::connect(&stack.pg_url)
+        .await
+        .expect("pg connect");
+    let state = AdminState::new().with_pg_pool(pool);
+    let (port, cancel) = start_admin_server_with_state(state).await;
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("http://127.0.0.1:{port}/saga/not-a-uuid/cancel"))
+        .send()
+        .await
+        .expect("POST /saga/:id/cancel failed");
+    assert_eq!(resp.status().as_u16(), 404, "non-UUID saga cancel must return 404");
+    cancel.cancel();
+}
+
+/// cancel_saga with a pool, valid UUID but no matching row must return 404
+/// (SQL rows_affected==0 path — lines 768-778 in admin.rs).
+#[tokio::test]
+async fn test_admin_cancel_saga_valid_uuid_not_found_with_pg_pool() {
+    let stack = PgStack::start().await;
+    let pool = sqlx::PgPool::connect(&stack.pg_url)
+        .await
+        .expect("pg connect");
+    let state = AdminState::new().with_pg_pool(pool);
+    let (port, cancel) = start_admin_server_with_state(state).await;
+
+    let id = uuid::Uuid::new_v4();
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("http://127.0.0.1:{port}/saga/{id}/cancel"))
+        .send()
+        .await
+        .expect("POST /saga/:id/cancel failed");
+    assert_eq!(resp.status().as_u16(), 404, "cancel of non-existent saga must return 404");
     cancel.cancel();
 }
