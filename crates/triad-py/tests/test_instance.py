@@ -1,6 +1,5 @@
 """Tests for PyTriadInstance (sync parts only — no real DB needed)."""
-import pytest
-from triad import TriadInstance, TransactionCM
+from triad import TransactionCM, TriadInstance
 
 
 def test_triad_instance_is_importable():

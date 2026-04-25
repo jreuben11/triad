@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 dev = [
     "pytest>=9",
     "pytest-asyncio>=1",
-    "mypy>=1",
+    "ruff>=0.4",
 ]
 
 [tool.maturin]
@@ -27,6 +27,8 @@ asyncio_mode = "auto"
 pythonpath = ["python"]
 testpaths = ["tests"]
 
-[tool.mypy]
-mypy_path = "python"
-ignore_missing_imports = true
+[tool.ruff]
+src = ["python"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]

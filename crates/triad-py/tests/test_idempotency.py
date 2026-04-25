@@ -1,7 +1,11 @@
 """Tests for PyIdempotencyKey, PyIdempotencyRecord, and PyIdempotencyStore."""
-import pytest
-from triad import IdempotencyKey, IdempotencyRecord, IdempotencyStore, lookup, store_result
-
+from triad import (
+    IdempotencyKey,
+    IdempotencyRecord,
+    IdempotencyStore,
+    lookup,
+    store_result,
+)
 
 # ── IdempotencyKey ─────────────────────────────────────────────────────────────
 

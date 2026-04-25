@@ -1,5 +1,4 @@
 """Tests for PyOutboxPublisher (sync construction only — no real DB needed)."""
-import pytest
 from triad import OutboxPublisher
 
 

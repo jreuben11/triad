@@ -1,7 +1,7 @@
 """Tests for PyAggregateRoot and Aggregate ABC."""
 import pytest
-from triad import AggregateRoot, Aggregate
 
+from triad import Aggregate, AggregateRoot
 
 # ── Test aggregate implementation ──────────────────────────────────────────────
 
