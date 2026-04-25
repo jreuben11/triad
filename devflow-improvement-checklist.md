@@ -156,5 +156,31 @@
 
 ### Open findings (not fixed — tracked as v0.2.0 items)
 
-- [ ] **`app.rs` oversized** — `crates/triad-tui/src/app.rs` is 849 lines, exceeding the 400-line guideline. Natural split: extract `EventLoop` (event dispatch), `Renderer` (draw calls), and `StateManager` (data refresh) into sub-modules. **Effort: M**
+- [x] **`app.rs` oversized** — `crates/triad-tui/src/app.rs` split into `app/{mod,input,tests}.rs` in Phase 11 refactor commit. **Effort: M** (resolved)
+
+---
+
+## Phase 12/13 end-of-phase review (2026-04-25)
+
+### Background agent permission model — lessons learned
+
+- [x] **`bypassPermissions` mode does NOT override project settings.json allow list** — Background agents spawned via the `Agent` tool cannot use `Edit`, `Write`, or any `Bash(...)` pattern not listed in the worktree's `.claude/settings.json`. Symptom: agents pivot to running the `fewer-permission-prompts` skill instead of their assigned task. Fix: pre-populate all four settings.json files with the complete allow list. **Effort: S per batch**
+
+- [x] **Agent prompt hijacking via skill discovery** — When real tools are blocked, background agents discover the `fewer-permission-prompts` skill and run it, producing permissions-analysis output instead of feature work. This wastes a full agent invocation. Pre-flight: verify settings.json before launching any batch. **Effort: XS (checklist)**
+
+- [x] **Parallel squash-merge conflicts in `claude-best-practices-learned.md`** — When multiple parallel agents each append to `claude-best-practices-learned.md`, their PRs will conflict on rebase. Pattern: always keep both sections (HEAD + incoming), renumber colliding phase numbers, remove conflict markers. **Effort: XS per merge**
+
+- [x] **`project-plan.md` phase numbering collision** — Parallel agents working simultaneously both assigned themselves "Phase 12". On merge, rename the later one (tui-coverage → Phase 13). **Effort: XS per merge**
+
+### Process improvements applied
+
+- [x] Switched load-test framework from k6 (JavaScript) to goose 0.17 (Rust-native, Tokio-based)
+- [x] Added `step_done` event granularity between milestones and line-by-line logging in `/project-status`
+- [x] Expanded all `.claude/settings.json` allow lists from 18 → 37+ entries (Edit, Write, full Bash set)
+- [x] Added agent prompt files: `scripts/prompts/{load-tests,proptest,tui-coverage}.md`
+
+### Open findings
+
+- [ ] **goose Prometheus assertion pattern needs a running server** — Load tests assert `triad_outbox_relay_published_total` increments by scraping `/metrics`. These tests only work against a live triad-runner instance. They should be documented as "manual / CI with service" tests, not unit tests. **Effort: S**
+- [ ] **tui-coverage Phase 13 items not in Agent Launch Configuration table** — The batch table in `project-plan.md` only covers through Phase 11. Phases 12/13 were launched manually via background agents. Update the table for documentation completeness. **Effort: XS**
 - [ ] **`paste` unmaintained dep** — transitive via tachyonfx 0.7. No action until tachyonfx releases an update. Re-evaluate when tachyonfx cuts a new release. **Effort: XS when unblocked**
