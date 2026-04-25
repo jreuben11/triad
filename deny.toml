@@ -22,6 +22,10 @@ ignore = [
     # No safe upgrade: tachyonfx 0.7 pins ratatui 0.28.1 which pulls paste.
     # Re-evaluate when tachyonfx publishes a new release using an updated ratatui.
     "RUSTSEC-2024-0436",
+    # idna 0.3.0 — Punycode label validation gap; transitive via reqwest→goose→triad-loadtest.
+    # Affects load-test tooling only (not published, not production). Fix: upgrade goose when
+    # a release shipping idna >=1.0.0 is available.
+    "RUSTSEC-2024-0421",
 ]
 
 [licenses]

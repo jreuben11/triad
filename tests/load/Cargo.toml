@@ -2,6 +2,7 @@
 name    = "triad-loadtest"
 version = "0.1.0"
 edition = "2021"
+license = "MIT OR Apache-2.0"
 publish = false
 
 [lib]
@@ -21,5 +22,4 @@ path = "src/bin/cache_read.rs"
 [dependencies]
 goose      = "0.17"
 tokio      = { version = "1", features = ["full"] }
-serde_json = "1"
 reqwest    = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
