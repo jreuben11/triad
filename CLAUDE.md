@@ -23,6 +23,7 @@
   - [Unit tests](#unit-tests)
   - [Integration tests](#integration-tests)
   - [Property-based and fuzz targets](#property-based-and-fuzz-targets)
+- [Definition of done — pattern module](#definition-of-done--pattern-module)
 - [Key design documents](#key-design-documents)
 - [Deployment modes (summary)](#deployment-modes-summary)
 - [Admin API endpoints (port 8080)](#admin-api-endpoints-port-8080)
@@ -31,11 +32,17 @@
   - [When to use /loop vs parallel agents](#when-to-use-loop-vs-parallel-agents)
   - [Checking progress](#checking-progress)
   - [Agent prompts](#agent-prompts)
+- [PR checklist](#pr-checklist)
 - [Self-optimisation instructions](#self-optimisation-instructions)
 - [End-of-phase introspective review (mandatory)](#end-of-phase-introspective-review-mandatory)
   - [Process review](#process-review)
+  - [Retrospective — process improvement](#retrospective--process-improvement)
   - [Design doc review](#design-doc-review)
-  - [Design/code/plan sync review (run at end of every phase)](#designcodeplan-sync-review-run-at-end-of-every-phase)
+  - [Design/code/plan sync review](#designcodeplan-sync-review-run-at-end-of-every-phase)
+  - [Design improvement signals](#design-improvement-signals)
+  - [Code improvement signals](#code-improvement-signals)
+  - [API ergonomics check](#api-ergonomics-check)
+  - [Test quality audit](#test-quality-audit)
   - [Codebase review](#codebase-review)
   - [Tooling review](#tooling-review)
   - [Output](#output)
@@ -99,6 +106,8 @@ Install tokio-console: `cargo install tokio-console`
 - Binary crate (`triad-cli`): use `anyhow` for top-level error propagation.
 - Never use `unwrap()` or `expect()` in non-test code. Use `?` propagation.
 - All public functions return `Result<T, TriadError>` or a domain-specific error type.
+- Error messages must be actionable: include the field name, the bad value, and what is expected. `"postgres connection failed: pool exhausted (max_connections=10) — increase backends.postgres.max_connections"` not `"connection error"`.
+- Config validation errors must be caught at startup with the full YAML field path — not at the first runtime use of that config value.
 
 ### Async
 - All async code uses `tokio`. No `async-std`, no `futures::executor`.
@@ -114,7 +123,7 @@ Install tokio-console: `cargo install tokio-console`
 ### Configuration
 - All config is loaded via the `config` crate (YAML + env layering). No hardcoded values.
 - Config structs live in `triad-core/src/config.rs` and derive `serde::Deserialize`.
-- Environment variable overrides use `TRIAD_` prefix and `__` as separator (e.g. `TRIAD_KAFKA__BROKERS`).
+- Environment variable overrides use `TRIAD_` prefix and `__` as separator (e.g. `TRIAD_BACKENDS__KAFKA__BROKERS`).
 
 ### Observability
 - Use `tracing` macros everywhere (`trace!`, `debug!`, `info!`, `warn!`, `error!`). Never `println!` or `eprintln!` in library/runner code.
@@ -209,6 +218,21 @@ tests/
 ### Property-based and fuzz targets
 - For parsing code (protobuf, config, WAL event decoding): add `proptest` or `cargo-fuzz` targets.
 
+## Definition of done — pattern module
+
+A pattern module is not done until all of the following pass:
+
+- [ ] Unit tests ≥ 90% line coverage for the module file
+- [ ] Integration test covers: happy path + at least one failure/retry path
+- [ ] All metrics emitted using constants from `triad-core/src/metrics.rs` (no inline strings)
+- [ ] Every `tracing` span includes `pattern_name` and `pipeline_name` fields
+- [ ] DLQ routing implemented for poison pills (uses `triad.dlq.{source_topic}` template)
+- [ ] Config struct added to the `PatternConfig` enum in `triad-core/src/config.rs`
+- [ ] Example YAML stanza added to `triad-physical-design.md` §7 or the config reference
+- [ ] Admin API route wired if the pattern has inspectable state (saga, dlq, checkpoint)
+- [ ] Cancellation token respected: module exits cleanly within drain timeout
+- [ ] `cargo clippy` clean, `cargo fmt` applied
+
 ## Key design documents
 
 - `triad-system-design.md` — conceptual design, all patterns, deployment modes, observability SLOs, durability model
@@ -218,7 +242,7 @@ tests/
 
 | Mode | How | Leader |
 |---|---|---|
-| 1 | `Triad::start()` embedded in app | `NoopLeader` (always leader) |
+| 1 | `TriadInstance::start()` embedded in app | `NoopLeader` (always leader) |
 | 2 | `triad run` standalone binary | `NoopLeader` |
 | 3 | K8s Deployment + `kubernetes` feature | `K8sLeaseLeader` (15s lease) |
 
@@ -252,15 +276,12 @@ GET  /metrics/cardinality       metric label cardinality report
 This project uses the `/zellij-launch` skill (must be inside a zellij session).
 
 ### Starting a phase
+
 ```
-/zellij-launch phase 0    # proto + core (parallel agents)
-/zellij-launch phase 1    # backends (parallel agent)
-/zellij-launch phase 2    # cdc-outbox (parallel) + saga-eos (/loop)
-/zellij-launch phase 3    # engine (/loop) + sdk + cli (parallel)
-/zellij-launch phase 4    # integration tests (parallel agent)
+/zellij-launch phase N    # opens tabs for batch N as defined in project-plan.md
 ```
 
-The skill reads the **Agent Launch Configuration** table in `project-plan.md` — that table is the single source of truth for which worktrees, targets, prompts, and `/loop` flags apply to each batch.
+The skill reads the **Agent Launch Configuration** table in `project-plan.md` — that table is the single source of truth for which worktrees, targets, prompts, and `/loop` flags apply to each batch. Do not hardcode phase numbers here; check the table for what is currently unstarted.
 
 ### When to use /loop vs parallel agents
 
@@ -279,10 +300,29 @@ Per-agent task descriptions live in `scripts/prompts/<name>.md`. Each prompt spe
 
 Before starting any agent task, also read `claude-best-practices-learned.md` — it contains accumulated patterns for avoiding permission prompts, git pitfalls, and Cargo anti-patterns discovered across all sessions.
 
+## PR checklist
+
+Run through this before marking any branch ready for merge:
+
+```
+[ ] cargo fmt --check passes
+[ ] cargo clippy --workspace -- -D warnings passes (zero warnings)
+[ ] cargo nextest run --workspace passes (zero failures, zero ignored without comment)
+[ ] cargo llvm-cov nextest --workspace --fail-under-lines 80 passes
+[ ] No todo!(), unimplemented!(), or bail!("not implemented") left in non-stub code
+[ ] No inline metric name strings (all use constants from metrics.rs)
+[ ] project-plan.md items checked off for work done in this branch
+[ ] CLAUDE.md updated if a new safety invariant was discovered
+[ ] claude-best-practices-learned.md updated if a new pitfall was discovered
+[ ] triad-physical-design.md §1.1 still matches the file tree
+[ ] Any non-obvious design choice recorded in triad-system-design.md §14
+```
+
+If opening a PR that adds or changes a public API: also run `cargo semver-checks`.
+
 ## Self-optimisation instructions
 
-**Before starting work**, read `claude-best-practices-learned.md` for accumulated invariants
-from previous sessions. Apply them immediately — do not rediscover known pitfalls.
+**Before starting work**, read `claude-best-practices-learned.md` for accumulated invariants from previous sessions. Apply them immediately — do not rediscover known pitfalls.
 
 **After completing each module or phase**, do all four steps before opening a PR:
 
@@ -300,13 +340,13 @@ from previous sessions. Apply them immediately — do not rediscover known pitfa
    - A crate API gotcha from compiler errors
    Do not add anything derivable from reading the code. Only things that would surprise a future agent.
 
-4. **Commit all three files together** (`project-plan.md`, `CLAUDE.md`,
-   `claude-best-practices-learned.md`) with the implementation commit.
+4. **Commit all three files together** (`project-plan.md`, `CLAUDE.md`, `claude-best-practices-learned.md`) with the implementation commit.
+
+**Recording architecture decisions**: when you make a non-obvious design choice — picking one library over another, choosing a data structure, modelling something as a trait vs enum — record it in `triad-system-design.md` §14 as a short paragraph: *decision made*, *alternatives considered*, *reason chosen*. This prevents the same debate recurring in a future session.
 
 ## End-of-phase introspective review (mandatory)
 
-At the end of every phase — before tagging or opening the next phase's PR — run this review.
-It takes 10–15 minutes and prevents the project from accruing invisible technical debt.
+At the end of every phase — before tagging or opening the next phase's PR — run this review. It takes 10–15 minutes and prevents invisible technical debt. The goal is not only to verify compliance but to actively propose improvements to process, design, and code quality.
 
 ### Process review
 - Does `/project-status` show a clear, phase-grouped TODO list? If the skill output was confusing, improve `~/.claude/commands/project-status.md`.
@@ -314,6 +354,15 @@ It takes 10–15 minutes and prevents the project from accruing invisible techni
 - Do all worktree `.claude/settings.json` Stop hooks still point to a valid tab name (`status`)?
 - Are any merged branches still present as local worktrees? Run `git worktree list` and clean up.
 - Did every agent commit the three-file discipline (`project-plan.md` + `CLAUDE.md` + `claude-best-practices-learned.md`)? Check with `git log --name-only main..HEAD` per worktree.
+
+### Retrospective — process improvement
+Answer these before moving to the next phase. Capture anything non-obvious in `devflow-improvement-checklist.md`.
+
+- **What slowed this phase down?** Any task that took 2× longer than expected? Could a better prompt, a pre-written scaffold, or a skill have helped?
+- **Any repeated manual steps?** If you ran the same sequence of commands more than twice, write a script or update a skill.
+- **Did any agent produce wrong output requiring hand-correction?** If so, update the agent's prompt in `scripts/prompts/<name>.md` to prevent recurrence.
+- **Was the phase scope right?** If the batch took more than one full session, split it next time. If it was trivial, merge it with an adjacent phase.
+- **Did the `/project-status` skill give accurate information?** If not, fix the skill.
 
 ### Design doc review
 - Does `triad-system-design.md` still accurately describe the implementation? Flag any sections that use Go terminology, pseudocode, or describe unimplemented patterns without a "v0.x.0 scope" note.
@@ -338,23 +387,55 @@ Verify all three artefacts are consistent **before** opening a PR or tagging a r
 
 4. **Plan truthfulness** — no `[x]` in `project-plan.md` for an artefact not present on disk:
    ```bash
-   # spot-check: pick five [x] file items and verify they exist
-   ls crates/triad-runner/tests/test_inbox.rs   # example of a previously false [x]
+   # spot-check: pick five [x] file items and run: ls <path>
+   # uncheck any item whose artefact is missing; move to current phase as [ ]
    ```
-   Uncheck any item whose artefact is missing; move it to the current phase as `[ ]`.
 
 5. **Admin routes** — does the `CLAUDE.md` "Admin API endpoints" table match the routes in `admin.rs`? Add any new routes added this phase.
+
+### Design improvement signals
+Actively look for opportunities to improve the architecture — not just verify it is still correct.
+
+- **Module size**: any source file (excluding tests) exceeding ~400 lines? Consider splitting at a natural seam.
+- **Cross-cutting duplication**: if the same pattern (retry loop, circuit-breaker check, span creation) appears in 3+ modules, it should be a shared utility or middleware.
+- **Trait object friction**: if callers are doing `Box::new(...)` in many places or fighting object safety, consider making the trait generic with an associated type.
+- **Unnecessary `Arc<Mutex<T>>`**: could it be `Arc<RwLock<T>>`? Could it be replaced with a message-passing channel? Lock contention in async code is a common performance trap.
+- **Unrecorded design decisions**: any choice made this phase that a future agent would find surprising? Add it to `triad-system-design.md` §14.
+
+### Code improvement signals
+Look for specific code-quality opportunities, not just "does it compile".
+
+- **Gratuitous clones**: search for `.clone()` on `Vec`, `String`, or large structs in hot paths (poll loops, per-message processing). Are any avoidable with borrows or `Arc`?
+- **Performance lints**: run `cargo clippy -- -W clippy::perf` explicitly (in addition to the default set) and fix anything flagged.
+- **`// TODO` / `// FIXME` accumulation**: `grep -rn 'TODO\|FIXME' crates/`. List them. Fix any that are easy; file the rest as tracked plan items with a `[ ]` in `project-plan.md`.
+- **Stub methods**: `grep -rn 'todo!\|unimplemented!\|not yet implemented' crates/`. Any that are not gated behind a feature flag or explicitly deferred must be completed before merge.
+- **Unused error variants**: do all `thiserror` enum variants have at least one call site? Dead variants are dead code and mislead readers.
+
+### API ergonomics check
+Run this when any phase adds or changes public API (SDK, CLI, or admin HTTP).
+
+- **First-use test**: read the SDK public surface (`triad-sdk/src/lib.rs`) as if you wrote none of it. Is the entry point (`TriadInstance::start`) obvious? Are the pattern facades discoverable?
+- **Error message quality**: are user-visible errors actionable? Each error should include the affected field/resource, the bad value, and what to do about it.
+- **Config validation at startup**: every required config field should be validated in `TriadConfig::validate()` with a clear field path in the error — not discovered at runtime when the first query fails.
+- **CLI help text**: run `triad --help` and `triad <subcommand> --help`. Are descriptions clear to someone who has never read the design docs?
+
+### Test quality audit
+- **Behaviour vs implementation**: are tests asserting outcomes ("the message appears in Kafka") or implementation details ("function X was called with argument Y")? Tests that assert internal call order break on refactors without catching regressions.
+- **Test independence**: do integration tests share mutable state? Each test must be runnable in isolation and in any order.
+- **`#[ignore]` hygiene**: `grep -rn '#\[ignore\]' crates/`. Every ignored test must have a comment explaining why and a plan item to re-enable it.
+- **Coverage blind spots**: run `cargo llvm-cov nextest --workspace --html` and open the report. Look for uncovered branches in error handling paths — these are where bugs hide.
+- **Brittle assertions**: tests asserting exact error message strings or exact log output will break on wording changes. Prefer asserting error *type* and *key fields*.
 
 ### Codebase review
 - Run `cargo machete` — remove any unused dependencies that accumulated.
 - Run `cargo deny check` — verify no new CVEs or license violations.
 - Run `cargo semver-checks` — verify no accidental public API breaks (before any version bump).
-- Are there any `todo!()`, `unimplemented!()`, or `bail!("not implemented")` stubs remaining? `grep -rn 'todo!\|unimplemented!\|not implemented'`
 - Check `cargo clippy --workspace -- -D warnings` for new lint categories that emerged.
 
 ### Tooling review
-- Are the newly added crates (criterion, proptest, insta, console-subscriber) being used? If a crate was added but no code uses it yet, add a placeholder benchmark / property test or remove the dep.
+- Are all dev-dependencies actually used? If a crate was added for a planned feature that wasn't implemented, remove it or add a placeholder test.
 - Would any marketplace plugin (`/ultrareview`, `/schedule`) improve the next phase's workflow?
+- Are the agent prompts in `scripts/prompts/` still accurate? Update any that drifted from what agents actually need.
 
 ### Output
-Capture non-obvious findings in `claude-best-practices-learned.md` and update `devflow-improvement-checklist.md` with any new action items discovered.
+Capture non-obvious findings in `claude-best-practices-learned.md` and update `devflow-improvement-checklist.md` with any new action items discovered. For each item: state the finding, the proposed improvement, and the effort estimate (S/M/L).
